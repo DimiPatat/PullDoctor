@@ -33,15 +33,14 @@ or "cn".
 from __future__ import annotations
 
 GUILD_NAME = "Undercover Socials"
-GUILD_SERVER_SLUG = "Silvermoon"
+GUILD_SERVER_SLUG = "silvermoon"
 GUILD_SERVER_REGION = "eu"  # "us", "eu", "kr", "tw", or "cn"
 
-_PLACEHOLDER = object()  # not used directly, see below
 
 def is_configured() -> bool:
     """
-    True once the three placeholder values above have actually been
-    edited. Used by latest_guild_report.py to fail with a clear,
+    True once the three values above are filled in with something
+    plausible. Used by latest_guild_report.py to fail with a clear,
     actionable error message (rather than a confusing "guild not
     found" from the API itself) if someone runs the scheduled
     automation before filling these in.
