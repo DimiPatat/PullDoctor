@@ -89,8 +89,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/
-          git diff --staged --quiet && echo "No changes to commit (schedule guard likely skipped this run)." || git commit -m "Publish scheduled raid report"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit (schedule guard likely skipped this run)."
+          else
+            git commit -m "Publish scheduled raid report"
+            # Fetch + rebase immediately before pushing, in case main moved
+            # forward (e.g. a manual push, or another run) since this job's
+            # checkout -- avoids a rejected non-fast-forward push.
+            git fetch origin main
+            git rebase origin/main
+            git push
+          fi
 
       - name: Set up GitHub Pages
         uses: actions/configure-pages@v5
