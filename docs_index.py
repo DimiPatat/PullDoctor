@@ -89,6 +89,7 @@ def render_index_html(
     Render a minimal, dependency-free index page listing every report,
     newest first, each linking to its file under `reports_subfolder_name/`.
     """
+    redirect_tag = ""
     if not reports:
         body = '<p class="empty">No reports have been generated yet.</p>'
     else:
@@ -101,12 +102,20 @@ def render_index_html(
                 f'<span class="ts"> &mdash; generated {_esc(timestamp_str)}</span></li>'
             )
         body = "<ul>" + "".join(items) + "</ul>"
+        # Auto-redirect straight to the newest report (reports[0], since
+        # scan_reports_directory sorts newest-first). A <meta refresh> is
+        # used rather than JS so it still works with JS disabled. The list
+        # above still renders underneath, as a fallback/history page for
+        # anyone who lands here with the redirect blocked or wants to
+        # browse older reports.
+        newest_href = f"{reports_subfolder_name}/{reports[0].filename}"
+        redirect_tag = f'<meta http-equiv="refresh" content="0; url={_esc(newest_href)}">\n'
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{_esc(title)}</title>
+{redirect_tag}<title>{_esc(title)}</title>
 <style>
 body {{ background:#14151a; color:#e8e8ec; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; margin:0; padding:24px; }}
 h1 {{ font-size:20px; margin:0 0 16px 0; }}
