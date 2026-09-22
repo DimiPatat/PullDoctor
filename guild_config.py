@@ -36,6 +36,7 @@ GUILD_NAME = "Undercover Socials"
 GUILD_SERVER_SLUG = "Silvermoon"
 GUILD_SERVER_REGION = "eu"  # "us", "eu", "kr", "tw", or "cn"
 
+_PLACEHOLDER = object()  # not used directly, see below
 
 def is_configured() -> bool:
     """
@@ -46,9 +47,7 @@ def is_configured() -> bool:
     automation before filling these in.
     """
     return (
-        GUILD_NAME != "Undercover Socials"
-        and GUILD_SERVER_SLUG != "https://www.warcraftlogs.com/guild/id/821302"
-        and bool(GUILD_NAME.strip())
+        bool(GUILD_NAME.strip())
         and bool(GUILD_SERVER_SLUG.strip())
-        and bool(GUILD_SERVER_REGION.strip())
+        and GUILD_SERVER_REGION in {"us", "eu", "kr", "tw", "cn"}
     )
