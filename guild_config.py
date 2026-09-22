@@ -32,8 +32,8 @@ or "cn".
 """
 from __future__ import annotations
 
-GUILD_NAME = "Your Guild Name Here"
-GUILD_SERVER_SLUG = "your-server-slug"
+GUILD_NAME = "Undercover Socials"
+GUILD_SERVER_SLUG = "Silvermoon"
 GUILD_SERVER_REGION = "eu"  # "us", "eu", "kr", "tw", or "cn"
 
 
@@ -46,8 +46,8 @@ def is_configured() -> bool:
     automation before filling these in.
     """
     return (
-        GUILD_NAME != "Your Guild Name Here"
-        and GUILD_SERVER_SLUG != "your-server-slug"
+        GUILD_NAME != "Undercover Socials"
+        and GUILD_SERVER_SLUG != "https://www.warcraftlogs.com/guild/id/821302"
         and bool(GUILD_NAME.strip())
         and bool(GUILD_SERVER_SLUG.strip())
         and bool(GUILD_SERVER_REGION.strip())
