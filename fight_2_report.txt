@@ -1,0 +1,147 @@
+Nek'zali the Soulcoiler  (KILL, 303.8s)
+============================================================
+
+-- Deaths --------------------------------------------
+Nek'zali the Soulcoiler -- 2 death(s):
+   121.7s  Thralun              died to Unknown Ability (dmg in 5s before: 909619, effective healing: 152481)
+   243.9s  Stárkk               died to Unknown Ability (dmg in 5s before: 1014872, effective healing: 321633)
+
+-- Healing -------------------------------------------
+Nek'zali the Soulcoiler -- healing (303.8s):
+  Drdaroou          263985 HPS  (80,199,068 effective,  45.2% overheal)
+  Chubbycake        228258 HPS  (69,345,238 effective,  52.3% overheal)
+  Dimimonk          225515 HPS  (68,511,796 effective,  41.6% overheal)
+  Smoolla           209121 HPS  (63,531,460 effective,  44.2% overheal)
+  Illidarw           40956 HPS  (12,442,469 effective,  32.5% overheal)
+  Desaros            40197 HPS  (12,212,037 effective,  42.3% overheal)
+  Dundo              35326 HPS  (10,732,167 effective,  51.6% overheal)
+  Nargyla            22419 HPS  ( 6,811,080 effective,  46.8% overheal)
+  Lloydk             21035 HPS  ( 6,390,574 effective,  14.1% overheal)
+  Miteos             19025 HPS  ( 5,779,685 effective,  12.7% overheal)
+  Smackemhard        15718 HPS  ( 4,775,085 effective,  14.5% overheal)
+  Prkno              15446 HPS  ( 4,692,401 effective,  19.9% overheal)
+  Zhuzhuzhu          15269 HPS  ( 4,638,720 effective,  16.5% overheal)
+  Supercox           14586 HPS  ( 4,431,336 effective,   2.8% overheal)
+  Zós                14346 HPS  ( 4,358,352 effective,  13.2% overheal)
+  Awaki              12147 HPS  ( 3,690,149 effective,   1.6% overheal)
+  Stárkk             11625 HPS  ( 3,531,731 effective,  23.7% overheal)
+  Lundblast          11530 HPS  ( 3,502,737 effective,   0.0% overheal)
+  Tankryte           10692 HPS  ( 3,248,162 effective,   4.3% overheal)
+  Thralun             6565 HPS  ( 1,994,570 effective,  13.8% overheal)
+  Alluviel            5394 HPS  ( 1,638,695 effective,  36.9% overheal)
+  Faunastomper        3783 HPS  ( 1,149,134 effective,  30.7% overheal)
+
+-- Damage Taken --------------------------------------
+Nek'zali the Soulcoiler -- damage taken (303.8s):
+  Desaros            67999 DTPS  (20,658,176 total)
+  Thralun            53128 DTPS  (16,140,544 total)
+  Illidarw           52693 DTPS  (16,008,330 total)
+  Chubbycake         52017 DTPS  (15,802,882 total)
+  Smackemhard        51993 DTPS  (15,795,674 total)
+  Alluviel           51848 DTPS  (15,751,390 total)
+  Prkno              50894 DTPS  (15,461,818 total)
+  Smoolla            50171 DTPS  (15,242,198 total)
+  Zhuzhuzhu          49948 DTPS  (15,174,163 total)
+  Nargyla            49856 DTPS  (15,146,457 total)
+  Zós                48855 DTPS  (14,842,199 total)
+  Dimimonk           47730 DTPS  (14,500,569 total)
+  Faunastomper       47513 DTPS  (14,434,668 total)
+  Dundo              47184 DTPS  (14,334,654 total)
+  Awaki              44486 DTPS  (13,514,925 total)
+  Drdaroou           44409 DTPS  (13,491,632 total)
+  Miteos             43271 DTPS  (13,145,932 total)
+  Supercox           39978 DTPS  (12,145,390 total)
+  Tankryte           39377 DTPS  (11,962,955 total)
+  Stárkk             38610 DTPS  (11,729,801 total)
+  Lundblast          38509 DTPS  (11,699,130 total)
+  Lloydk             31938 DTPS  ( 9,702,868 total)
+
+-- Biggest Hits --------------------------------------
+     724,257  Soul Transfer             on Prkno
+     674,047  Soul Transfer             on Nargyla
+     645,902  Soul Transfer             on Tankryte
+     621,636  Soul Transfer             on Thralun
+     368,269  Melee                     on Desaros
+
+-- Damage Done (DPS) ---------------------------------
+Nek'zali the Soulcoiler -- damage done (303.8s):
+  Lundblast         204388 DPS  (62,093,503 total)
+  Supercox          185417 DPS  (56,330,159 total)
+  Prkno             178106 DPS  (54,109,102 total)
+  Miteos            177365 DPS  (53,883,804 total)
+  Zhuzhuzhu         173150 DPS  (52,603,423 total)
+  Zós               171436 DPS  (52,082,564 total)
+  Awaki             165686 DPS  (50,335,780 total)
+  Dundo             159024 DPS  (48,311,798 total)
+  Smackemhard       156127 DPS  (47,431,553 total)
+  Nargyla           154106 DPS  (46,817,833 total)
+  Lloydk            139575 DPS  (42,403,039 total)
+  Alluviel          139479 DPS  (42,373,866 total)
+  Tankryte          138239 DPS  (41,997,409 total)
+  Stárkk            134535 DPS  (40,872,019 total)
+  Thralun           120893 DPS  (36,727,453 total)
+  Faunastomper       82346 DPS  (25,016,968 total)
+  Illidarw           55802 DPS  (16,952,640 total)
+  Desaros            49463 DPS  (15,027,061 total)
+  Dimimonk           17136 DPS  ( 5,205,915 total)
+  Smoolla             4432 DPS  ( 1,346,489 total)
+  Chubbycake          3517 DPS  ( 1,068,330 total)
+  Drdaroou             804 DPS  (   244,302 total)
+
+-- Cooldown Usage ------------------------------------
+Nek'zali the Soulcoiler -- cooldown usage (303.8s):
+  Chubbycake      Tranquility               16/2 casts  (100.0% efficiency)
+  Dimimonk        Revival                   2/2 casts  (100.0% efficiency)
+  Drdaroou        Divine Hymn               12/3 casts  (100.0% efficiency)
+
+-- Consumables ---------------------------------------
+Nek'zali the Soulcoiler -- consumables:
+  Chubbycake      missing (5): health_potion, combat_potion, oil, food, healthstone
+  Desaros         missing (5): health_potion, combat_potion, oil, food, healthstone
+  Dundo           missing (5): health_potion, combat_potion, oil, food, healthstone
+  Faunastomper    missing (5): health_potion, combat_potion, oil, food, healthstone
+  Miteos          missing (5): health_potion, combat_potion, oil, food, healthstone
+  Nargyla         missing (5): health_potion, combat_potion, oil, food, healthstone
+  Supercox        missing (5): health_potion, combat_potion, oil, food, healthstone
+  Tankryte        missing (5): health_potion, combat_potion, oil, food, healthstone
+  Zhuzhuzhu       missing (5): health_potion, combat_potion, oil, food, healthstone
+  Dimimonk        missing (4): health_potion, oil, food, healthstone
+  Drdaroou        missing (4): health_potion, oil, food, healthstone
+  Lloydk          missing (4): combat_potion, oil, food, healthstone
+  Prkno           missing (4): health_potion, oil, food, healthstone
+  Smackemhard     missing (4): health_potion, combat_potion, oil, food
+  Smoolla         missing (4): health_potion, oil, food, healthstone
+  Stárkk          missing (4): combat_potion, oil, food, healthstone
+  Thralun         missing (4): health_potion, oil, food, healthstone
+  Zós             missing (4): health_potion, oil, food, healthstone
+  Alluviel        missing (3): health_potion, oil, food
+  Awaki           missing (3): oil, food, healthstone
+  Illidarw        missing (3): health_potion, oil, food
+  Lundblast       missing (2): oil, food
+
+Vantus Rune: not majority-used this fight (0 player(s) had it) -- not flagging anyone.
+
+-- Gear Check ----------------------------------------
+Gear check:
+  Alluviel        avg ilvl  265.4  lowest quality: Common      gems: 3
+  Awaki           avg ilvl  265.4  lowest quality: Common      gems: 4
+  Chubbycake      avg ilvl  264.3  lowest quality: Common      gems: 5
+  Desaros         avg ilvl  265.1  lowest quality: Common      gems: 3
+  Dimimonk        avg ilvl  263.8  lowest quality: Common      gems: 4
+  Drdaroou        avg ilvl  265.6  lowest quality: Common      gems: 4
+  Dundo           avg ilvl  284.3  lowest quality: Common      gems: 4
+  Faunastomper    avg ilvl  243.9  lowest quality: Common      gems: 0
+  Illidarw        avg ilvl  282.9  lowest quality: Uncommon    gems: 3
+  Lloydk          avg ilvl  281.8  lowest quality: Uncommon    gems: 3
+  Lundblast       avg ilvl  285.0  lowest quality: Common      gems: 3
+  Miteos          avg ilvl  266.7  lowest quality: Common      gems: 4
+  Nargyla         avg ilvl  279.7  lowest quality: Uncommon    gems: 4
+  Prkno           avg ilvl  284.6  lowest quality: Common      gems: 3
+  Smackemhard     avg ilvl  263.9  lowest quality: Common      gems: 3
+  Smoolla         avg ilvl  274.0  lowest quality: Common      gems: 4
+  Stárkk          avg ilvl  263.3  lowest quality: Common      gems: 4
+  Supercox        avg ilvl  266.6  lowest quality: Common      gems: 4
+  Tankryte        avg ilvl  261.9  lowest quality: Common      gems: 4
+  Thralun         avg ilvl  269.3  lowest quality: Common      gems: 2
+  Zhuzhuzhu       avg ilvl  266.6  lowest quality: Common      gems: 6
+  Zós             avg ilvl  263.9  lowest quality: Common      gems: 4

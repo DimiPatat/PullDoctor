@@ -1,0 +1,113 @@
+Nek'zali the Soulcoiler  (wipe, 104.7s)
+============================================================
+
+-- Deaths --------------------------------------------
+Nek'zali the Soulcoiler -- 1 death(s):
+    84.7s  Dimimonk             died to Unknown Ability (dmg in 5s before: 1343823, effective healing: 522052)
+
+-- Healing -------------------------------------------
+Nek'zali the Soulcoiler -- healing (104.7s):
+  Chubbycake        118970 HPS  (12,450,971 effective,  63.8% overheal)
+  Dundo             114131 HPS  (11,944,540 effective,  43.2% overheal)
+  Dimimonk           90668 HPS  ( 9,488,926 effective,  57.6% overheal)
+  Desaros            68884 HPS  ( 7,209,099 effective,  37.0% overheal)
+  Illidarw           47577 HPS  ( 4,979,265 effective,  47.1% overheal)
+  Zós                17154 HPS  ( 1,795,249 effective,  31.9% overheal)
+  Smoolla            12886 HPS  ( 1,348,567 effective,  76.9% overheal)
+  Zhuzhuzhu           9020 HPS  (   943,988 effective,  30.9% overheal)
+  Miteos              7565 HPS  (   791,719 effective,   2.1% overheal)
+  Lundblast           4832 HPS  (   505,668 effective,   0.0% overheal)
+  Lloydk              4412 HPS  (   461,708 effective,  36.4% overheal)
+  Alluviel            3944 HPS  (   412,716 effective,   0.7% overheal)
+  Smackemhard         2861 HPS  (   299,416 effective,   8.8% overheal)
+  Prkno               1984 HPS  (   207,681 effective,  22.7% overheal)
+  Tankryte               5 HPS  (       537 effective,   0.0% overheal)
+
+-- Damage Taken --------------------------------------
+Nek'zali the Soulcoiler -- damage taken (104.7s):
+  Desaros            78764 DTPS  ( 8,243,098 total)
+  Dimimonk           49131 DTPS  ( 5,141,843 total)
+  Alluviel           43419 DTPS  ( 4,544,066 total)
+  Zós                40497 DTPS  ( 4,238,276 total)
+  Illidarw           38559 DTPS  ( 4,035,439 total)
+  Chubbycake         32315 DTPS  ( 3,381,966 total)
+  Zhuzhuzhu          32200 DTPS  ( 3,369,929 total)
+  Prkno              21250 DTPS  ( 2,223,925 total)
+  Lundblast          17507 DTPS  ( 1,832,193 total)
+  Dundo              15971 DTPS  ( 1,671,484 total)
+  Smackemhard        11576 DTPS  ( 1,211,524 total)
+  Miteos              9548 DTPS  (   999,239 total)
+  Lloydk              8427 DTPS  (   881,903 total)
+  Smoolla             2194 DTPS  (   229,650 total)
+  Tankryte            1680 DTPS  (   175,778 total)
+
+-- Biggest Hits --------------------------------------
+     651,597  Rending Slash             on Chubbycake
+     630,627  Rending Slash             on Prkno
+     545,604  Rending Slash             on Alluviel
+     460,660  Rending Slash             on Dimimonk
+     454,327  Rending Slash             on Alluviel
+
+-- Damage Done (DPS) ---------------------------------
+Nek'zali the Soulcoiler -- damage done (104.7s):
+  Zós               217419 DPS  (22,754,237 total)
+  Miteos            209006 DPS  (21,873,772 total)
+  Desaros           167289 DPS  (17,507,834 total)
+  Zhuzhuzhu         158203 DPS  (16,556,842 total)
+  Lloydk            158091 DPS  (16,545,144 total)
+  Lundblast         150679 DPS  (15,769,511 total)
+  Illidarw           95784 DPS  (10,024,363 total)
+  Dundo              50816 DPS  ( 5,318,179 total)
+  Smackemhard        42966 DPS  ( 4,496,698 total)
+  Alluviel           24656 DPS  ( 2,580,391 total)
+  Dimimonk           16072 DPS  ( 1,682,032 total)
+  Prkno               9190 DPS  (   961,772 total)
+  Tankryte            2806 DPS  (   293,657 total)
+  Chubbycake          1869 DPS  (   195,585 total)
+  Smoolla              783 DPS  (    81,956 total)
+
+-- Cooldown Usage ------------------------------------
+Nek'zali the Soulcoiler -- cooldown usage (104.7s):
+  Dimimonk        Revival                   1/1 casts  (100.0% efficiency)
+
+-- Consumables ---------------------------------------
+Nek'zali the Soulcoiler -- consumables:
+  Alluviel        missing (5): health_potion, combat_potion, oil, food, healthstone
+  Chubbycake      missing (5): health_potion, combat_potion, oil, food, healthstone
+  Célest          missing (5): health_potion, combat_potion, oil, food, healthstone
+  Desaros         missing (5): health_potion, combat_potion, oil, food, healthstone
+  Dimimonk        missing (5): health_potion, combat_potion, oil, food, healthstone
+  Dundo           missing (5): health_potion, combat_potion, oil, food, healthstone
+  Illidarw        missing (5): health_potion, combat_potion, oil, food, healthstone
+  Lloydk          missing (5): health_potion, combat_potion, oil, food, healthstone
+  Lundblast       missing (5): health_potion, combat_potion, oil, food, healthstone
+  Miteos          missing (5): health_potion, combat_potion, oil, food, healthstone
+  Nargyla         missing (5): health_potion, combat_potion, oil, food, healthstone
+  Prkno           missing (5): health_potion, combat_potion, oil, food, healthstone
+  Smackemhard     missing (5): health_potion, combat_potion, oil, food, healthstone
+  Smoolla         missing (5): health_potion, combat_potion, oil, food, healthstone
+  Tankryte        missing (5): health_potion, combat_potion, oil, food, healthstone
+  Zhuzhuzhu       missing (5): health_potion, combat_potion, oil, food, healthstone
+  Zós             missing (5): health_potion, combat_potion, oil, food, healthstone
+
+Vantus Rune: not majority-used this fight (0 player(s) had it) -- not flagging anyone.
+
+-- Gear Check ----------------------------------------
+Gear check:
+  Alluviel        no gear data (no CombatantInfo snapshot)
+  Chubbycake      no gear data (no CombatantInfo snapshot)
+  Célest          no gear data (no CombatantInfo snapshot)
+  Desaros         no gear data (no CombatantInfo snapshot)
+  Dimimonk        no gear data (no CombatantInfo snapshot)
+  Dundo           no gear data (no CombatantInfo snapshot)
+  Illidarw        no gear data (no CombatantInfo snapshot)
+  Lloydk          no gear data (no CombatantInfo snapshot)
+  Lundblast       no gear data (no CombatantInfo snapshot)
+  Miteos          no gear data (no CombatantInfo snapshot)
+  Nargyla         no gear data (no CombatantInfo snapshot)
+  Prkno           no gear data (no CombatantInfo snapshot)
+  Smackemhard     no gear data (no CombatantInfo snapshot)
+  Smoolla         no gear data (no CombatantInfo snapshot)
+  Tankryte        no gear data (no CombatantInfo snapshot)
+  Zhuzhuzhu       no gear data (no CombatantInfo snapshot)
+  Zós             no gear data (no CombatantInfo snapshot)

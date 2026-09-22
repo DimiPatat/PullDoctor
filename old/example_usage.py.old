@@ -1,0 +1,63 @@
+"""
+example_usage.py
+
+Quick standalone smoke test for wcl_api.py -- not part of the app's
+module chain, just a sanity check you can run on its own while
+developing this piece.
+
+Set your credentials as environment variables before running:
+    export WCL_CLIENT_ID="..."
+    export WCL_CLIENT_SECRET="..."
+    python example_usage.py <report_code>
+"""
+
+import os
+import sys
+
+from wcl_api import WCLClient, WCLAPIError
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python example_usage.py <report_code>")
+        sys.exit(1)
+
+    report_code = sys.argv[1]
+
+    client_id = os.environ.get("WCL_CLIENT_ID")
+    client_secret = os.environ.get("WCL_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        print("Set WCL_CLIENT_ID and WCL_CLIENT_SECRET environment variables.")
+        sys.exit(1)
+
+    client = WCLClient(client_id, client_secret)
+
+    try:
+        report = client.get_report_fights(report_code)
+    except WCLAPIError as exc:
+        print(f"Error fetching report: {exc}")
+        sys.exit(1)
+
+    print(f"Report: {report['title']}  ({report['zone']['name']})")
+    print(f"Fights: {len(report['fights'])}")
+    for fight in report["fights"][:5]:
+        status = "KILL" if fight["kill"] else "wipe"
+        print(f"  #{fight['id']:>3}  {fight['name']:<30} {status}")
+
+    if report["fights"]:
+        first_fight_id = report["fights"][0]["id"]
+        events_by_type = client.get_report_events_multi(
+            report_code,
+            first_fight_id,
+            event_types=["Casts", "Healing", "DamageTaken", "Deaths"],
+        )
+        print(f"\nFetched events for fight #{first_fight_id}:")
+        for event_type, events in events_by_type.items():
+            print(f"  {event_type:<12} {len(events)} events")
+
+    print(f"\nRate limit: {client.rate_limit.points_spent_this_hour} / "
+          f"{client.rate_limit.limit_per_hour} points this hour")
+
+
+if __name__ == "__main__":
+    main()
