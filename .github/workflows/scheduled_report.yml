@@ -11,8 +11,8 @@
 # on the last Sunday of March and the last Sunday of October. To target
 # "23:15 Brussels time", two separate cron lines are needed:
 #
-#   CET months (UTC+1): 23:15 CET = 22:15 UTC -> "15 22 * * 1,3"
-#   CEST months (UTC+2): 23:15 CEST = 21:15 UTC -> "15 21 * * 1,3"
+#   CET months (UTC+1): 23:15 CET = 22:15 UTC -> "15 22 * 11,12,1,2,3 1,3"
+#   CEST months (UTC+2): 23:15 CEST = 21:15 UTC -> "15 21 * 4,5,6,7,8,9,10 1,3"
 #
 # Since the exact switchover date moves around within March/October each
 # year, and cron can only restrict by whole months (not "after the last
@@ -34,6 +34,15 @@
 # approximately-right TRIGGER; the guard is what guarantees correctness.
 # See test_schedule_guard.py for tests proving this against the real
 # 2026 DST transition dates.
+#
+# NOTE ON DAY-OF-MONTH vs DAY-OF-WEEK: the day-of-month field below is
+# "*", NOT "1-31". In standard cron syntax, when BOTH the day-of-month
+# and day-of-week fields are restricted (neither is "*"), they are
+# OR'd together, not AND'd. "1-31" matches every day of the month, so
+# it would always be true and the day-of-week restriction would never
+# actually filter anything -- the job would fire every day. Using "*"
+# for day-of-month means only the day-of-week field (1,3 = Mon/Wed)
+# constrains the schedule.
 # ----------------------------------------------------------------------
 
 name: Scheduled Raid Report
@@ -41,9 +50,9 @@ name: Scheduled Raid Report
 on:
   schedule:
     # Winter (CET, UTC+1): Mon & Wed at 23:15 Brussels time -> 22:15 UTC
-    - cron: "15 22 1-31 11,12,1,2,3 1,3"
+    - cron: "15 22 * 11,12,1,2,3 1,3"
     # Summer (CEST, UTC+2): Mon & Wed at 23:15 Brussels time -> 21:15 UTC
-    - cron: "15 21 1-31 4,5,6,7,8,9,10 1,3"
+    - cron: "15 21 * 4,5,6,7,8,9,10 1,3"
   workflow_dispatch: {}  # lets you click "Run workflow" manually in the Actions tab, any time
 
 permissions:
@@ -83,7 +92,6 @@ jobs:
           else
             python publish_scheduled_report.py
           fi
-
       - name: Commit generated report back to the repository
         run: |
           git config user.name "github-actions[bot]"
@@ -100,7 +108,6 @@ jobs:
             git rebase origin/main
             git push
           fi
-
       - name: Set up GitHub Pages
         uses: actions/configure-pages@v5
 
