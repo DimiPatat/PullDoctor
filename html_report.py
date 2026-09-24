@@ -8,30 +8,62 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- every fight-relative timestamp (pull duration
+CHANGED (this update) -- four report-polish features added, all pure
+server-side rendering (no external JS libraries, no charting library --
+everything is either plain CSS or inline SVG built as strings):
+
+  1. TIMELINE STRIP -- a per-pull, three-lane horizontal strip (Deaths /
+     Raid Cooldowns / Defensive Cooldowns) showing WHEN each event
+     happened across the fight, positioned by percentage-of-duration.
+     Native <title> tooltips on hover (no JS needed) show the exact
+     M:SS, player, and ability. Sits at the top of every pull, ABOVE
+     the collapsible sections, so it's visible without expanding
+     anything else.
+     NOTE ON TIMESTAMP CONVENTION: CooldownUsage.cast_timestamps (both
+     raid and defensive) are RAW, report-relative milliseconds --
+     confirmed directly in cooldown_analyzer.py's source, which never
+     subtracts fight.start_time (the same reason death_analyzer.py has
+     to do that subtraction itself for time_into_fight_ms). This file
+     now uses time_format.fight_relative_ms() to convert those raw
+     values into fight-relative offsets before turning them into a
+     percentage position on the strip. Deaths are unaffected --
+     DeathReport.time_into_fight_ms is already fight-relative.
+
+  2. STICKY MINI-SCOREBOARD -- a small non-collapsible KPI strip
+     (Result, Duration, Top DPS, Top HPS, Deaths) at the top of every
+     pull's body, using position:sticky so it stays visible under the
+     filter bar while you scroll through a pull's expanded sections.
+     The exact sticky offset (how far down from the viewport top) is
+     set at runtime via a tiny bit of JS that measures the actual
+     rendered height of the filter bar -- a fixed guessed px value
+     would break any time the filter bar wraps to a different number
+     of lines (e.g. narrower browser window, more boss chips).
+
+  3. COLOR-CODED EFFICIENCY -- the Efficiency column in both Raid
+     Cooldown Usage and Defensive Cooldown Usage tables now renders as
+     a colored pill (red / amber / green) instead of plain text, using
+     the same threshold buckets in both places (see
+     EFFICIENCY_LOW_MAX / EFFICIENCY_MID_MAX below).
+
+  4. TREND VIEW ACROSS PULLS -- when a boss has 2+ pulls, a small pair
+     of inline-SVG bar charts (raid DPS per pull, deaths per pull) is
+     shown once per boss, right under the boss summary line and above
+     the individual pull accordions -- kill pulls are colored green,
+     wipes are colored the same muted "wipe" red used elsewhere, so a
+     progression trend (and which attempts were kills) is visible at a
+     glance without opening every pull.
+
+CHANGED (prior update) -- every fight-relative timestamp (pull duration
 in each pull's accordion header, death times in the Deaths table, and
 defensive-cooldown cast times in the Damage Prevented by Defensives
-detail tables) now renders as M:SS (e.g. "3:03") via
-time_format.format_timestamp(), instead of raw seconds (e.g. "183.0s"),
-matching report.py, death_analyzer.py, and cooldown_analyzer.py.
+detail tables) renders as M:SS (e.g. "3:03") via
+time_format.format_timestamp(), instead of raw seconds (e.g. "183.0s").
 
-CHANGED (prior update) -- "Damage Prevented by Defensives" now uses the
+CHANGED (prior update) -- "Damage Prevented by Defensives" uses the
 SAME meter-bar treatment (class-colored relative-width bar behind the
 player's name) as Damage Done/Healing/Damage Taken, instead of a plain
-table. Specifically:
-  - The OVERVIEW table (one row per player, ranked by total damage
-    prevented) now has a meter bar, scaled the same way as every other
-    meter section: the top row (highest total_damage_prevented) is
-    100% width, everyone else is relative to that.
-  - The per-player WINDOW DETAIL tables (individual defensive casts)
-    remain plain tables underneath each player's row -- a meter bar
-    doesn't make sense there, since each row is a single EVENT in
-    time, not a competing entry among peers to rank against.
-  - Players who only used "immunity" defensives (no damage_prevented
-    value possible at all -- see defensive_damage_prevention_analyzer.py)
-    still get a bar, but at 0% width and a distinct "no estimate
-    possible" note instead of a plain 0, so it's clear this is a
-    "can't be measured" case, not "measured and found to be zero".
+table, including a distinct hatched/dimmed "no estimate possible" bar
+style for players whose only usage was an immunity-type defensive.
 
 Pure rendering: takes a list of already-built FightReportData and
 produces HTML. Does not call any analyzer and does not touch the
@@ -44,9 +76,20 @@ import class_colors
 import difficulty_names
 import gear_analyzer
 from report import FightReportData
-from time_format import format_timestamp
+from time_format import format_timestamp, fight_relative_ms
 
 _BG = "#14151a"
+
+# Efficiency-pill thresholds, shared by both Raid Cooldown Usage and
+# Defensive Cooldown Usage tables: below EFFICIENCY_LOW_MAX -> red,
+# between LOW_MAX and MID_MAX -> amber, at or above MID_MAX -> green.
+EFFICIENCY_LOW_MAX = 40.0
+EFFICIENCY_MID_MAX = 70.0
+
+# Neutral fallback color for timeline markers/meter bars when a
+# player's class can't be resolved (e.g. missing CombatantInfo) --
+# avoids passing None straight into an inline CSS color value.
+_FALLBACK_MARKER_COLOR = "#8a8d9c"
 
 
 def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
@@ -74,6 +117,7 @@ _CSS = f"""
     --bg: {_BG}; --panel: #1c1e26; --panel-alt: #22242e; --border: #2f3140;
     --text: #e8e8ec; --text-dim: #9a9db0; --accent: #6c8cff;
     --kill: #3ddc84; --wipe: #ff6b6b; --warn: #ffb84d;
+    --sticky-top: 70px;
 }}
 * {{ box-sizing: border-box; }}
 body {{
@@ -151,15 +195,6 @@ td.meter-cell {{ position: relative; padding: 0; }}
     transition: width 0.2s ease;
 }}
 .meter-bar.no-estimate {{
-    /* A 0%-width bar has nothing for a background pattern to render
-       ON -- so a "no estimate possible" bar needs a small fixed-width
-       STUB to actually be visible at all, otherwise this looks
-       IDENTICAL to a real measured-zero bar (confirmed visually via a
-       real rendered screenshot before this fix -- an invisible 0px
-       hatch pattern doesn't distinguish anything). min-width gives it
-       a deliberately small, unmistakably-not-a-real-percentage sliver
-       instead.
-    */
     width: 28px !important;
     min-width: 28px;
     opacity: 0.35;
@@ -179,6 +214,72 @@ td.meter-cell {{ position: relative; padding: 0; }}
 .defensive-window-note {{
     font-size: 11.5px; color: var(--text-dim); margin: 0 0 6px 0;
 }}
+
+/* ---- Efficiency pills (feature 3) ---- */
+.eff-pill {{
+    display: inline-block; padding: 2px 9px; border-radius: 10px;
+    font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12px;
+}}
+.eff-low  {{ background: rgba(255,107,107,0.18); color: var(--wipe); }}
+.eff-mid  {{ background: rgba(255,184,77,0.18);  color: var(--warn); }}
+.eff-high {{ background: rgba(61,220,132,0.18);  color: var(--kill); }}
+
+/* ---- Sticky mini-scoreboard (feature 2) ---- */
+.mini-scoreboard {{
+    position: sticky; top: var(--sticky-top); z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
+    background: var(--panel-alt); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 16px; margin: 0 0 14px 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}}
+.mini-scoreboard .stat {{ display: flex; flex-direction: column; gap: 1px; min-width: 64px; }}
+.mini-scoreboard .stat-label {{
+    font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim);
+}}
+.mini-scoreboard .stat-value {{ font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }}
+.mini-scoreboard .stat-value.kill {{ color: var(--kill); }}
+.mini-scoreboard .stat-value.wipe {{ color: var(--wipe); }}
+.mini-scoreboard .stat-sub {{ font-size: 10.5px; color: var(--text-dim); }}
+
+/* ---- Timeline strip (feature 1) ---- */
+.timeline-strip {{ margin: 0 0 16px 0; }}
+.timeline-legend {{
+    display: flex; gap: 16px; font-size: 10.5px; color: var(--text-dim); margin-bottom: 5px;
+}}
+.timeline-legend .legend-item {{ display: flex; align-items: center; gap: 4px; }}
+.timeline-legend .legend-swatch {{ display: inline-block; width: 9px; height: 9px; }}
+.timeline-legend .legend-swatch.death {{ background: var(--wipe); width: 2px; height: 11px; }}
+.timeline-legend .legend-swatch.raidcd {{ background: var(--accent); border-radius: 50%; }}
+.timeline-legend .legend-swatch.defcd {{ background: var(--accent); border-radius: 2px; }}
+.tl-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }}
+.tl-row:last-child {{ margin-bottom: 0; }}
+.tl-label {{
+    flex: 0 0 74px; width: 74px; text-align: right; font-size: 10.5px; color: var(--text-dim);
+}}
+.tl-track {{
+    position: relative; flex: 1 1 auto; height: 18px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+}}
+.tl-marker {{
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    cursor: default; border: 1px solid rgba(0,0,0,0.4);
+}}
+.tl-marker.death {{
+    width: 2px; height: 18px; top: 0; transform: translate(-50%, 0);
+    background: var(--wipe); border: none;
+}}
+.tl-marker.raidcd {{ width: 9px; height: 9px; border-radius: 50%; }}
+.tl-marker.defcd {{ width: 8px; height: 8px; border-radius: 2px; }}
+
+/* ---- Trend view across pulls (feature 4) ---- */
+.trend-view {{
+    display: flex; flex-wrap: wrap; gap: 28px; padding: 4px 16px 14px 16px;
+}}
+.trend-chart-block {{ display: flex; flex-direction: column; gap: 4px; }}
+.trend-chart-title {{
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim);
+}}
+.trend-chart-note {{ font-size: 11.5px; color: var(--text-dim); font-style: italic; padding: 4px 16px; }}
 """
 _JS = """
 function applyFilters() {
@@ -203,6 +304,12 @@ function resetFilters() {
     document.getElementById('player-search').value = '';
     applyFilters();
 }
+function updateStickyOffset() {
+    var bar = document.querySelector('.filter-bar');
+    if (bar) {
+        document.documentElement.style.setProperty('--sticky-top', bar.offsetHeight + 'px');
+    }
+}
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.role-chip input, .boss-chip input').forEach(function(el) {
         el.addEventListener('change', applyFilters);
@@ -210,6 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('player-search').addEventListener('input', applyFilters);
     document.getElementById('reset-filters').addEventListener('click', resetFilters);
     applyFilters();
+    updateStickyOffset();
+    window.addEventListener('resize', updateStickyOffset);
 });
 """
 ROLE_LABELS = {"tank": "Tank", "healer": "Healer", "melee": "Melee", "ranged": "Ranged"}
@@ -248,13 +357,49 @@ def _class_of(player_id, data: FightReportData) -> str | None:
     return actor.subtype if actor is not None else None
 
 
-def _row(player_id, player_name, data: FightReportData, cells: list, numeric_indices: frozenset[int] = frozenset()) -> str:
+def _marker_color(player_id, data: FightReportData) -> str:
+    class_name = _class_of(player_id, data)
+    if class_name is None:
+        return _FALLBACK_MARKER_COLOR
+    color = class_colors.get_class_color(class_name)
+    return color or _FALLBACK_MARKER_COLOR
+
+
+def _efficiency_pill(efficiency_fraction: float) -> str:
+    """
+    efficiency_fraction is 0.0-1.0 (as returned by CooldownUsage.efficiency()).
+    Buckets: < EFFICIENCY_LOW_MAX -> red, < EFFICIENCY_MID_MAX -> amber,
+    else green -- same thresholds for both Raid and Defensive Cooldown
+    Usage tables.
+    """
+    pct = efficiency_fraction * 100.0
+    if pct < EFFICIENCY_LOW_MAX:
+        bucket = "eff-low"
+    elif pct < EFFICIENCY_MID_MAX:
+        bucket = "eff-mid"
+    else:
+        bucket = "eff-high"
+    return f'<span class="eff-pill {bucket}">{pct:.1f}%</span>'
+
+
+def _row(
+    player_id, player_name, data: FightReportData, cells: list,
+    numeric_indices: frozenset[int] = frozenset(), raw_indices: frozenset[int] = frozenset(),
+) -> str:
+    """
+    raw_indices: cell indices whose content is ALREADY-BUILT, TRUSTED
+    HTML (e.g. an efficiency pill span) that must NOT be passed through
+    _esc() a second time -- every such cell is built exclusively by this
+    module itself (never from raw log/user data), so this is safe.
+    """
     role = _role_of(player_id, data)
     attrs = f'data-player="{_esc(player_name)}"'
     if role:
         attrs += f' data-role="{role}"'
     cell_html = "".join(
-        f'<td class="num">{_esc(c)}</td>' if i in numeric_indices else f"<td>{_esc(c)}</td>"
+        (f'<td class="num">{c}</td>' if i in numeric_indices else f"<td>{c}</td>")
+        if i in raw_indices else
+        (f'<td class="num">{_esc(c)}</td>' if i in numeric_indices else f"<td>{_esc(c)}</td>")
         for i, c in enumerate(cells)
     )
     return f"<tr {attrs}>{cell_html}</tr>"
@@ -265,15 +410,6 @@ def _meter_row(
     other_cells: list, numeric_indices: frozenset[int] = frozenset(),
     no_estimate: bool = False,
 ) -> str:
-    """
-    Same as _row(), but the FIRST cell is a "meter cell" (name + class-
-    colored relative bar) rather than plain text.
-    no_estimate: when True, renders the bar at 0% width with a
-    "no-estimate" hatched/dimmed style (see .meter-bar.no-estimate CSS)
-    instead of a plain empty bar -- used for players whose ONLY
-    defensive usage was an "immunity" type with no damage_prevented
-    value at all, so it's visually distinct from "measured at zero".
-    """
     role = _role_of(player_id, data)
     class_name = _class_of(player_id, data)
     bar_color = class_colors.get_class_color(class_name)
@@ -324,15 +460,211 @@ def _cooldown_usage_rows(usages, data: FightReportData, duration_ms: int) -> lis
         _row(u.player_id, u.player_name, data, [
             u.player_name, u.ability_name,
             f"{u.num_casts}/{u.theoretical_max_casts(duration_ms)}",
-            f"{u.efficiency(duration_ms) * 100:.1f}%",
-        ], numeric_indices)
+            _efficiency_pill(u.efficiency(duration_ms)),
+        ], numeric_indices, raw_indices=frozenset({3}))
         for u in usages
     ]
+
+
+# ---------------------------------------------------------------------
+# Feature 2: sticky mini-scoreboard
+# ---------------------------------------------------------------------
+def _mini_scoreboard_html(data: FightReportData) -> str:
+    fight = data.parsed_fight.fight
+    duration_ms = fight.duration_ms
+    status_class = "kill" if fight.kill else "wipe"
+    status_label = "KILL" if fight.kill else "WIPE"
+
+    top_dps_html = '<span class="stat-sub">n/a</span>'
+    if data.damage_done_summaries:
+        top = data.damage_done_summaries[0]  # already sorted descending
+        top_dps_html = (
+            f'<span class="stat-value">{top.dps(duration_ms):,.0f}</span>'
+            f'<span class="stat-sub">{_esc(top.player_name or "Unknown")}</span>'
+        )
+
+    top_hps_html = '<span class="stat-sub">n/a</span>'
+    has_role_data = bool(data.player_roles)
+    relevant_healers = [
+        s for s in data.healer_summaries
+        if not has_role_data or _role_of(s.healer_id, data) in ("tank", "healer")
+    ]
+    if relevant_healers:
+        top = max(relevant_healers, key=lambda s: s.total_effective_healing)
+        top_hps_html = (
+            f'<span class="stat-value">{top.hps(duration_ms):,.0f}</span>'
+            f'<span class="stat-sub">{_esc(top.healer_name or "Unknown")}</span>'
+        )
+
+    death_count = len(data.death_reports)
+    death_class = "wipe" if death_count > 0 else "kill"
+
+    return f"""
+    <div class="mini-scoreboard">
+        <div class="stat">
+            <span class="stat-label">Result</span>
+            <span class="stat-value {status_class}">{status_label}</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Duration</span>
+            <span class="stat-value">{format_timestamp(duration_ms)}</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Top DPS</span>
+            {top_dps_html}
+        </div>
+        <div class="stat">
+            <span class="stat-label">Top HPS</span>
+            {top_hps_html}
+        </div>
+        <div class="stat">
+            <span class="stat-label">Deaths</span>
+            <span class="stat-value {death_class}">{death_count}</span>
+        </div>
+    </div>
+    """
+
+
+# ---------------------------------------------------------------------
+# Feature 1: timeline strip
+# ---------------------------------------------------------------------
+def _position_percent(ms: int, duration_ms: int) -> float:
+    if duration_ms <= 0:
+        return 0.0
+    return max(0.0, min(100.0, (ms / duration_ms) * 100.0))
+
+
+def _timeline_strip_html(data: FightReportData) -> str:
+    fight = data.parsed_fight.fight
+    duration_ms = fight.duration_ms
+    start_time = fight.start_time
+
+    if duration_ms <= 0:
+        return ""
+
+    death_markers = []
+    for d in data.death_reports:
+        pct = _position_percent(d.time_into_fight_ms, duration_ms)
+        title = f"{format_timestamp(d.time_into_fight_ms)} \u2014 {_esc(d.victim_name or 'Unknown')} died to {_esc(d.killing_ability_name or 'Unknown')}"
+        death_markers.append(f'<div class="tl-marker death" style="left:{pct:.2f}%;" title="{title}"></div>')
+
+    def _cooldown_markers(usages, marker_class: str) -> list[str]:
+        markers = []
+        for u in usages:
+            color = _marker_color(u.player_id, data)
+            for raw_ts in u.cast_timestamps:
+                relative_ms = fight_relative_ms(raw_ts, start_time, duration_ms)
+                pct = _position_percent(relative_ms, duration_ms)
+                title = f"{format_timestamp(relative_ms)} \u2014 {_esc(u.player_name or 'Unknown')} \u2014 {_esc(u.ability_name)}"
+                markers.append(
+                    f'<div class="tl-marker {marker_class}" '
+                    f'style="left:{pct:.2f}%;background-color:{color};" title="{title}"></div>'
+                )
+        return markers
+
+    raid_cd_markers = _cooldown_markers(data.cooldown_usages, "raidcd")
+    defensive_cd_markers = _cooldown_markers(data.defensive_cooldown_usages, "defcd")
+
+    if not (death_markers or raid_cd_markers or defensive_cd_markers):
+        return ""
+
+    return f"""
+    <div class="timeline-strip">
+        <div class="timeline-legend">
+            <span class="legend-item"><span class="legend-swatch death"></span>Death</span>
+            <span class="legend-item"><span class="legend-swatch raidcd"></span>Raid CD</span>
+            <span class="legend-item"><span class="legend-swatch defcd"></span>Defensive CD</span>
+        </div>
+        <div class="tl-row">
+            <span class="tl-label">Deaths</span>
+            <div class="tl-track">{''.join(death_markers)}</div>
+        </div>
+        <div class="tl-row">
+            <span class="tl-label">Raid CDs</span>
+            <div class="tl-track">{''.join(raid_cd_markers)}</div>
+        </div>
+        <div class="tl-row">
+            <span class="tl-label">Defensive CDs</span>
+            <div class="tl-track">{''.join(defensive_cd_markers)}</div>
+        </div>
+    </div>
+    """
+
+
+# ---------------------------------------------------------------------
+# Feature 4: trend view across pulls (per boss, 2+ pulls only)
+# ---------------------------------------------------------------------
+def _bar_chart_svg(
+    values: list[float], is_kill: list[bool], value_labels: list[str], pull_labels: list[str],
+    bar_width: int = 22, gap: int = 8, height: int = 52,
+) -> str:
+    n = len(values)
+    if n == 0:
+        return ""
+    max_value = max(values) if max(values) > 0 else 1.0
+    width = n * bar_width + (n - 1) * gap + 4
+    bars = []
+    for i, (value, kill, value_label, pull_label) in enumerate(zip(values, is_kill, value_labels, pull_labels)):
+        bar_h = max(2.0, (value / max_value) * (height - 14))
+        x = i * (bar_width + gap) + 2
+        y = height - bar_h - 12
+        color = "var(--kill)" if kill else "var(--wipe)"
+        title = f"Pull {pull_label}: {value_label}"
+        bars.append(
+            f'<rect x="{x}" y="{y:.1f}" width="{bar_width}" height="{bar_h:.1f}" rx="2" fill="{color}" opacity="0.85">'
+            f'<title>{_esc(title)}</title></rect>'
+            f'<text x="{x + bar_width / 2}" y="{height - 2}" font-size="9" fill="var(--text-dim)" '
+            f'text-anchor="middle">{_esc(pull_label)}</text>'
+        )
+    return f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">{"".join(bars)}</svg>'
+
+
+def _trend_view_html(pulls: list[FightReportData]) -> str:
+    if len(pulls) < 2:
+        return ""
+
+    dps_values, dps_labels, death_values, death_labels, is_kill, pull_labels = [], [], [], [], [], []
+    for i, data in enumerate(pulls, start=1):
+        fight = data.parsed_fight.fight
+        duration_s = fight.duration_ms / 1000 if fight.duration_ms > 0 else 0
+        raid_dps = (
+            sum(s.total_damage_done for s in data.damage_done_summaries) / duration_s
+            if duration_s > 0 else 0.0
+        )
+        dps_values.append(raid_dps)
+        dps_labels.append(f"{raid_dps:,.0f} raid DPS")
+        death_count = len(data.death_reports)
+        death_values.append(float(death_count))
+        death_labels.append(f"{death_count} death(s)")
+        is_kill.append(fight.kill)
+        pull_labels.append(str(i))
+
+    dps_chart = _bar_chart_svg(dps_values, is_kill, dps_labels, pull_labels)
+    death_chart = _bar_chart_svg(death_values, is_kill, death_labels, pull_labels)
+
+    return f"""
+    <div class="trend-view">
+        <div class="trend-chart-block">
+            <div class="trend-chart-title">Raid DPS by Pull</div>
+            {dps_chart}
+        </div>
+        <div class="trend-chart-block">
+            <div class="trend-chart-title">Deaths by Pull</div>
+            {death_chart}
+        </div>
+    </div>
+    """
 
 
 def _render_pull_sections(data: FightReportData) -> str:
     duration_ms = data.parsed_fight.fight.duration_ms
     blocks: list[str] = []
+
+    # Mini-scoreboard (feature 2) and timeline strip (feature 1) always
+    # go first, above every collapsible section.
+    blocks.append(_mini_scoreboard_html(data))
+    blocks.append(_timeline_strip_html(data))
+
     # 1. Deaths -- open by default.
     if data.death_reports:
         headers = ["Time", "Victim", "Killed By", "Dmg (window)", "Heal (window)"]
@@ -414,14 +746,15 @@ def _render_pull_sections(data: FightReportData) -> str:
             for hit in data.biggest_hits
         ]
         blocks.append(_section("Biggest Hits", _table(headers, rows, "No hits recorded.")))
-    # 7. Raid Cooldown Usage -- collapsed by default.
+    # 7. Raid Cooldown Usage -- collapsed by default. Efficiency column
+    # is now a color-coded pill (feature 3), built in _cooldown_usage_rows.
     if data.cooldown_usages:
         headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
         blocks.append(_section("Raid Cooldown Usage", _table(
             headers, _cooldown_usage_rows(data.cooldown_usages, data, duration_ms),
             "No tracked raid cooldowns used.",
         )))
-    # 8. Defensive Cooldown Usage -- collapsed by default.
+    # 8. Defensive Cooldown Usage -- collapsed by default. Same pill treatment.
     if data.defensive_cooldown_usages:
         headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
         blocks.append(_section("Defensive Cooldown Usage", _table(
@@ -429,14 +762,6 @@ def _render_pull_sections(data: FightReportData) -> str:
             "No tracked defensive cooldowns used.",
         )))
     # 9. Damage Prevented by Defensives -- collapsed by default.
-    # Overview table uses meter bars, same as Damage Done/Healing/
-    # Damage Taken. Scaling is against the TOP entry's
-    # total_damage_prevented (entries are already sorted descending by
-    # this same analyzer -- see defensive_damage_prevention_analyzer.py).
-    # A player whose only tracked usage was "immunity" (no damage
-    # prevented value is even POSSIBLE) gets a distinct hatched/dimmed
-    # 0%-width bar rather than looking identical to "measured, and it
-    # was zero".
     if data.defensive_damage_prevention:
         overview_headers = ["Player", "Prevented", "Dmg Taken (windows)", "Windows"]
         overview_numeric_indices = _numeric_indices(overview_headers[1:])
@@ -444,11 +769,6 @@ def _render_pull_sections(data: FightReportData) -> str:
         overview_rows = []
         for e in data.defensive_damage_prevention:
             has_any_estimate = bool(e.windows_with_estimate)
-            # "n/a" (not "0") for the Prevented cell when NO window has
-            # an estimate at all -- a real "0" would misleadingly imply
-            # "measured, and it happened to prevent nothing", when the
-            # true situation is "cannot be measured for this ability
-            # type" (see defensive_damage_prevention_analyzer.py).
             prevented_cell = f"{e.total_damage_prevented:,}" if has_any_estimate else "n/a"
             overview_rows.append(_meter_row(
                 e.player_id, e.player_name, data, e.total_damage_prevented, max_prevented,
@@ -560,6 +880,7 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
     boss_sections = []
     for boss_name, pulls in groups.items():
         kill_count = sum(1 for p in pulls if p.parsed_fight.fight.kill)
+        trend_html = _trend_view_html(pulls)
         pull_summaries = []
         for i, data in enumerate(pulls, start=1):
             fight = data.parsed_fight.fight
@@ -578,6 +899,7 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
         boss_sections.append(f"""
         <details class="boss-section" data-boss="{_esc(boss_name)}" open>
             <summary>{_esc(boss_name)} <span class="pull-count">({len(pulls)} pull(s), {kill_count} kill(s))</span></summary>
+            {trend_html}
             {''.join(pull_summaries)}
         </details>
         """)
