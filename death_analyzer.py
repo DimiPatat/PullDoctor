@@ -1,19 +1,20 @@
 """
 death_analyzer.py
-
 Analyzes deaths within a parsed fight. Builds a short window of context
 around each death: damage landing on the victim beforehand, and healing
 they were actually receiving, so you can tell "unhealable damage spike"
 apart from "healer missed it".
-
 Pure function over a ParsedFight -- no network, no other analyzer deps.
+
+CHANGED: summarize_wipe() now renders each death's time-into-fight as
+M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
+seconds (e.g. "183.0s"), matching report.py and html_report.py.
 """
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-
 from data_models import Event, ParsedFight
 import roster
+from time_format import format_timestamp
 
 DEFAULT_CONTEXT_WINDOW_MS = 5000
 
@@ -86,22 +87,18 @@ def _resolve_killing_ability(death: Event, damage_before: list[DamageInstance]) 
     death.ability_name is missing OR is one of the uninformative
     placeholder strings above. damage_before is already sorted
     chronologically, so its last entry is the most recent hit.
-
     Returns the original (possibly uninformative) name -- or None --
     if there's no usable damage to fall back to, rather than
     fabricating a guess.
     """
     name = death.ability_name
     is_uninformative = not name or name.strip().lower() in _UNINFORMATIVE_KILLING_ABILITY_NAMES
-
     if not is_uninformative:
         return name
-
     if damage_before:
         fallback_name = damage_before[-1].ability_name
         if fallback_name and fallback_name.strip().lower() not in _UNINFORMATIVE_KILLING_ABILITY_NAMES:
             return fallback_name
-
     return name
 
 
@@ -129,7 +126,6 @@ def analyze_deaths(
             and window_start <= e.timestamp <= death.timestamp
         ]
         damage_before.sort(key=lambda d: d.timestamp)
-
         healing_before = [
             HealInstance(
                 timestamp=e.timestamp, source_name=e.source_name,
@@ -139,7 +135,6 @@ def analyze_deaths(
             if e.data_type == "Healing" and e.target_id == victim_id
             and window_start <= e.timestamp <= death.timestamp
         ]
-
         reports.append(
             DeathReport(
                 victim_id=victim_id, victim_name=death.target_name, timestamp=death.timestamp,
@@ -159,9 +154,9 @@ def summarize_wipe(parsed_fight: ParsedFight, death_reports: list[DeathReport]) 
         return f"{parsed_fight.fight.name}: no deaths recorded."
     lines = [f"{parsed_fight.fight.name} -- {len(death_reports)} death(s):"]
     for report in death_reports:
-        seconds_in = report.time_into_fight_ms / 1000
+        time_label = format_timestamp(report.time_into_fight_ms)
         lines.append(
-            f"  {seconds_in:>6.1f}s  {(report.victim_name or 'Unknown')[:20]:<20} "
+            f"  {time_label:>6}  {(report.victim_name or 'Unknown')[:20]:<20} "
             f"died to {report.killing_ability_name or 'Unknown'} "
             f"(dmg in {DEFAULT_CONTEXT_WINDOW_MS // 1000}s before: "
             f"{report.total_damage_taken_in_window}, "

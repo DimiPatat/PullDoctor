@@ -1,6 +1,5 @@
 """
 html_report.py
-
 Renders a whole raid night (or, via main.py's --html flag, a SINGLE
 fight) into ONE self-contained HTML file: collapsible per-boss,
 per-pull, and per-section details, with client-side filters, a direct
@@ -9,7 +8,14 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- "Damage Prevented by Defensives" now uses the
+CHANGED (this update) -- every fight-relative timestamp (pull duration
+in each pull's accordion header, death times in the Deaths table, and
+defensive-cooldown cast times in the Damage Prevented by Defensives
+detail tables) now renders as M:SS (e.g. "3:03") via
+time_format.format_timestamp(), instead of raw seconds (e.g. "183.0s"),
+matching report.py, death_analyzer.py, and cooldown_analyzer.py.
+
+CHANGED (prior update) -- "Damage Prevented by Defensives" now uses the
 SAME meter-bar treatment (class-colored relative-width bar behind the
 player's name) as Damage Done/Healing/Damage Taken, instead of a plain
 table. Specifically:
@@ -32,14 +38,13 @@ produces HTML. Does not call any analyzer and does not touch the
 network.
 """
 from __future__ import annotations
-
 import html as html_module
 from collections import OrderedDict
-
 import class_colors
 import difficulty_names
 import gear_analyzer
 from report import FightReportData
+from time_format import format_timestamp
 
 _BG = "#14151a"
 
@@ -139,7 +144,6 @@ th {{ color: var(--text-dim); font-weight: 600; font-size: 11.5px; text-transfor
 th.num, td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
 tr.hidden-row {{ display: none; }}
 .empty-note {{ color: var(--text-dim); font-style: italic; font-size: 12.5px; }}
-
 td.meter-cell {{ position: relative; padding: 0; }}
 .meter-bar {{
     position: absolute; top: 3px; bottom: 3px; left: 0;
@@ -176,20 +180,16 @@ td.meter-cell {{ position: relative; padding: 0; }}
     font-size: 11.5px; color: var(--text-dim); margin: 0 0 6px 0;
 }}
 """
-
 _JS = """
 function applyFilters() {
     var allRoleBoxes = Array.prototype.slice.call(document.querySelectorAll('.role-chip input'));
     var checkedRoles = allRoleBoxes.filter(function(el) { return el.checked; }).map(function(el) { return el.value; });
     var allRolesChecked = allRoleBoxes.length === 0 || checkedRoles.length === allRoleBoxes.length;
-
     var checkedBosses = Array.prototype.map.call(document.querySelectorAll('.boss-chip input:checked'), function(el) { return el.value; });
     var query = document.getElementById('player-search').value.trim().toLowerCase();
-
     document.querySelectorAll('.boss-section').forEach(function(section) {
         section.style.display = checkedBosses.indexOf(section.dataset.boss) !== -1 ? '' : 'none';
     });
-
     document.querySelectorAll('tr[data-player]').forEach(function(row) {
         var role = row.dataset.role || '';
         var player = (row.dataset.player || '').toLowerCase();
@@ -212,9 +212,7 @@ document.addEventListener('DOMContentLoaded', function() {
     applyFilters();
 });
 """
-
 ROLE_LABELS = {"tank": "Tank", "healer": "Healer", "melee": "Melee", "ranged": "Ranged"}
-
 DEFAULT_OPEN_SECTIONS = {"Deaths", "Healing", "Damage Done (DPS)"}
 
 
@@ -270,7 +268,6 @@ def _meter_row(
     """
     Same as _row(), but the FIRST cell is a "meter cell" (name + class-
     colored relative bar) rather than plain text.
-
     no_estimate: when True, renders the bar at 0% width with a
     "no-estimate" hatched/dimmed style (see .meter-bar.no-estimate CSS)
     instead of a plain empty bar -- used for players whose ONLY
@@ -280,15 +277,12 @@ def _meter_row(
     role = _role_of(player_id, data)
     class_name = _class_of(player_id, data)
     bar_color = class_colors.get_class_color(class_name)
-
     width_percent = 0.0
     if not no_estimate and max_value and max_value > 0:
         width_percent = max(0.0, min(100.0, (value / max_value) * 100.0))
-
     attrs = f'data-player="{_esc(player_name)}"'
     if role:
         attrs += f' data-role="{role}"'
-
     bar_class = "meter-bar no-estimate" if no_estimate else "meter-bar"
     name_cell = (
         f'<td class="meter-cell">'
@@ -339,20 +333,18 @@ def _cooldown_usage_rows(usages, data: FightReportData, duration_ms: int) -> lis
 def _render_pull_sections(data: FightReportData) -> str:
     duration_ms = data.parsed_fight.fight.duration_ms
     blocks: list[str] = []
-
     # 1. Deaths -- open by default.
     if data.death_reports:
         headers = ["Time", "Victim", "Killed By", "Dmg (window)", "Heal (window)"]
         numeric_indices = _numeric_indices(headers)
         rows = [
             _row(r.victim_id, r.victim_name, data, [
-                f"{r.time_into_fight_ms / 1000:.1f}s", r.victim_name, r.killing_ability_name,
+                format_timestamp(r.time_into_fight_ms), r.victim_name, r.killing_ability_name,
                 f"{r.total_damage_taken_in_window:,}", f"{r.total_effective_healing_in_window:,}",
             ], numeric_indices)
             for r in data.death_reports
         ]
         blocks.append(_section("Deaths", _table(headers, rows, "No deaths.")))
-
     # 2. Avoidable Damage.
     if data.avoidable_config is not None:
         headers = ["Player", "Total Hits", "Breakdown"]
@@ -366,7 +358,6 @@ def _render_pull_sections(data: FightReportData) -> str:
             for r in hit_reports
         ]
         blocks.append(_section("Avoidable Damage", _table(headers, rows, "No avoidable hits taken. Clean pull!")))
-
     # 3. Healing -- open by default; restricted to tank/healer rows
     # whenever role data is available; METER bars, scaled to the top
     # ROW WITHIN THIS (already tank/healer-filtered) LIST.
@@ -388,7 +379,6 @@ def _render_pull_sections(data: FightReportData) -> str:
         ]
         empty_message = "No healing recorded from healers/tanks." if has_role_data else "No healing recorded."
         blocks.append(_section("Healing", _table(headers, rows, empty_message)))
-
     # 4. Damage Done (DPS) -- open by default; METER bars.
     if data.damage_done_summaries:
         headers = ["Player", "DPS", "Total"]
@@ -401,7 +391,6 @@ def _render_pull_sections(data: FightReportData) -> str:
             for s in data.damage_done_summaries
         ]
         blocks.append(_section("Damage Done (DPS)", _table(headers, rows, "No damage-done data.")))
-
     # 5. Damage Taken -- collapsed by default; METER bars.
     if data.damage_taken_summaries:
         headers = ["Player", "DTPS", "Total"]
@@ -414,7 +403,6 @@ def _render_pull_sections(data: FightReportData) -> str:
             for s in data.damage_taken_summaries
         ]
         blocks.append(_section("Damage Taken", _table(headers, rows, "No damage-taken data.")))
-
     # 6. Biggest Hits -- collapsed by default.
     if data.biggest_hits:
         headers = ["Amount", "Ability", "Target"]
@@ -426,7 +414,6 @@ def _render_pull_sections(data: FightReportData) -> str:
             for hit in data.biggest_hits
         ]
         blocks.append(_section("Biggest Hits", _table(headers, rows, "No hits recorded.")))
-
     # 7. Raid Cooldown Usage -- collapsed by default.
     if data.cooldown_usages:
         headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
@@ -434,7 +421,6 @@ def _render_pull_sections(data: FightReportData) -> str:
             headers, _cooldown_usage_rows(data.cooldown_usages, data, duration_ms),
             "No tracked raid cooldowns used.",
         )))
-
     # 8. Defensive Cooldown Usage -- collapsed by default.
     if data.defensive_cooldown_usages:
         headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
@@ -442,10 +428,9 @@ def _render_pull_sections(data: FightReportData) -> str:
             headers, _cooldown_usage_rows(data.defensive_cooldown_usages, data, duration_ms),
             "No tracked defensive cooldowns used.",
         )))
-
     # 9. Damage Prevented by Defensives -- collapsed by default.
-    # CHANGED: overview table now uses meter bars, same as Damage Done/
-    # Healing/Damage Taken. Scaling is against the TOP entry's
+    # Overview table uses meter bars, same as Damage Done/Healing/
+    # Damage Taken. Scaling is against the TOP entry's
     # total_damage_prevented (entries are already sorted descending by
     # this same analyzer -- see defensive_damage_prevention_analyzer.py).
     # A player whose only tracked usage was "immunity" (no damage
@@ -476,7 +461,6 @@ def _render_pull_sections(data: FightReportData) -> str:
                 no_estimate=not has_any_estimate,
             ))
         overview_table = _table(overview_headers, overview_rows, "No damage-prevention data available.")
-
         detail_headers = ["Time", "Ability", "Mitigation", "Dmg Taken", "Prevented"]
         detail_numeric_indices = _numeric_indices(detail_headers)
         detail_blocks = []
@@ -487,12 +471,12 @@ def _render_pull_sections(data: FightReportData) -> str:
             for w in entry.windows:
                 if w.mitigation_type == "immunity":
                     window_rows.append(_row(entry.player_id, entry.player_name, data, [
-                        f"{w.cast_timestamp / 1000:.1f}s", w.ability_name, "immunity",
+                        format_timestamp(w.cast_timestamp), w.ability_name, "immunity",
                         f"{w.actual_damage_taken:,} (residual)", "n/a",
                     ], detail_numeric_indices))
                 else:
                     window_rows.append(_row(entry.player_id, entry.player_name, data, [
-                        f"{w.cast_timestamp / 1000:.1f}s", w.ability_name,
+                        format_timestamp(w.cast_timestamp), w.ability_name,
                         f"{w.damage_reduction_percent:.0f}% / {w.window_duration_seconds:.0f}s",
                         f"{w.actual_damage_taken:,}", f"{w.damage_prevented:,}",
                     ], detail_numeric_indices))
@@ -510,7 +494,6 @@ def _render_pull_sections(data: FightReportData) -> str:
                 + "</div>"
             )
         blocks.append(_section("Damage Prevented by Defensives", overview_table + "".join(detail_blocks)))
-
     # 10. Consumables -- collapsed by default.
     if data.consumable_results:
         headers = ["Player", "# Missing", "Missing"]
@@ -537,7 +520,6 @@ def _render_pull_sections(data: FightReportData) -> str:
                 vantus_line = "Vantus Rune: everyone who should have it, has it."
             consumables_html += f'<p class="empty-note">{_esc(vantus_line)}</p>'
         blocks.append(_section("Consumables", consumables_html))
-
     # 11. Gear Check -- collapsed by default.
     if data.gear_reports:
         headers = ["Player", "Avg iLvl", "Lowest Quality", "Gems", "Missing Enchants"]
@@ -554,7 +536,6 @@ def _render_pull_sections(data: FightReportData) -> str:
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
             ], numeric_indices))
         blocks.append(_section("Gear Check", _table(headers, rows, "No gear data.")))
-
     return "".join(blocks)
 
 
@@ -562,14 +543,12 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
     groups: OrderedDict[str, list[FightReportData]] = OrderedDict()
     for data in fights:
         groups.setdefault(data.parsed_fight.fight.name, []).append(data)
-
     all_roles_seen = set()
     for data in fights:
         for role_info in data.player_roles.values():
             all_roles_seen.add(role_info.role)
     roles_for_filter = [r for r in ("tank", "healer", "melee", "ranged") if r in all_roles_seen] or \
         ["tank", "healer", "melee", "ranged"]
-
     role_chips = "".join(
         f'<label class="chip role-chip"><input type="checkbox" value="{r}" checked>{ROLE_LABELS[r]}</label>'
         for r in roles_for_filter
@@ -578,7 +557,6 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
         f'<label class="chip boss-chip"><input type="checkbox" value="{_esc(boss)}" checked>{_esc(boss)}</label>'
         for boss in groups.keys()
     )
-
     boss_sections = []
     for boss_name, pulls in groups.items():
         kill_count = sum(1 for p in pulls if p.parsed_fight.fight.kill)
@@ -592,7 +570,7 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
                 <summary>
                     {difficulty_badge}
                     <span class="badge {status}">{status.upper()}</span>
-                    Pull {i} &mdash; {fight.duration_ms / 1000:.1f}s
+                    Pull {i} &mdash; {format_timestamp(fight.duration_ms)}
                 </summary>
                 <div class="pull-body">{_render_pull_sections(data)}</div>
             </details>
@@ -603,7 +581,6 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
             {''.join(pull_summaries)}
         </details>
         """)
-
     report_link_html = ""
     if report_code:
         report_url = f"https://www.warcraftlogs.com/reports/{report_code}"
@@ -612,7 +589,6 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
             f'<a href="{_esc(report_url)}" target="_blank" rel="noopener noreferrer">'
             f"View original report on Warcraft Logs &#8599;</a></div>"
         )
-
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>

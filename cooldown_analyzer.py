@@ -1,10 +1,15 @@
-"""cooldown_analyzer.py -- generic cooldown usage/efficiency engine, reused for raid + defensive cooldowns."""
+"""cooldown_analyzer.py -- generic cooldown usage/efficiency engine, reused for raid + defensive cooldowns.
+
+CHANGED: summarize_cooldown_usage()'s header now shows fight duration as
+M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
+seconds (e.g. "183.0s"), matching report.py, death_analyzer.py, and
+html_report.py.
+"""
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-
 from data_models import ParsedFight
 import roster
+from time_format import format_timestamp
 
 
 @dataclass
@@ -60,7 +65,7 @@ def summarize_cooldown_usage(parsed_fight: ParsedFight, usages: list[CooldownUsa
     if not usages:
         return f"{parsed_fight.fight.name}: no tracked cooldown usage recorded."
     duration_ms = parsed_fight.fight.duration_ms
-    lines = [f"{parsed_fight.fight.name} -- cooldown usage ({duration_ms / 1000:.1f}s):"]
+    lines = [f"{parsed_fight.fight.name} -- cooldown usage ({format_timestamp(duration_ms)}):"]
     for usage in usages:
         max_casts = usage.theoretical_max_casts(duration_ms)
         lines.append(f"  {(usage.player_name or 'Unknown')[:15]:<15} {usage.ability_name[:25]:<25} {usage.num_casts}/{max_casts} casts  ({usage.efficiency(duration_ms) * 100:>5.1f}% efficiency)")
