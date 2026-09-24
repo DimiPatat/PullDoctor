@@ -8,7 +8,21 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- four report-polish features added, all pure
+CHANGED (this update) -- added a DIFFICULTY filter (LFR / Normal /
+Heroic / Mythic) alongside the existing Role/Boss/Player filters.
+Difficulty is a per-PULL property (the same boss can legitimately be
+pulled at more than one difficulty in a single raid night, e.g. Heroic
+farm + Mythic progression back to back), so this filters individual
+pull-sections directly (via a new data-difficulty attribute), not
+whole boss-sections the way the Boss filter does. As a bit of extra
+polish: if every pull under a boss gets filtered out by the difficulty
+selection, that boss-section is now ALSO hidden (via a boss-level
+"any visible pull?" check re-run whenever filters change), rather than
+showing an empty expanded boss card with nothing inside it. Only
+difficulties actually PRESENT across the fights passed in are shown as
+chips (same pattern already used for the Role filter).
+
+CHANGED (prior update) -- four report-polish features, all pure
 server-side rendering (no external JS libraries, no charting library --
 everything is either plain CSS or inline SVG built as strings):
 
@@ -24,24 +38,24 @@ everything is either plain CSS or inline SVG built as strings):
      confirmed directly in cooldown_analyzer.py's source, which never
      subtracts fight.start_time (the same reason death_analyzer.py has
      to do that subtraction itself for time_into_fight_ms). This file
-     now uses time_format.fight_relative_ms() to convert those raw
-     values into fight-relative offsets before turning them into a
-     percentage position on the strip. Deaths are unaffected --
+     uses time_format.fight_relative_ms() to convert those raw values
+     into fight-relative offsets before turning them into a percentage
+     position on the strip. Deaths are unaffected --
      DeathReport.time_into_fight_ms is already fight-relative.
 
   2. STICKY MINI-SCOREBOARD -- a small non-collapsible KPI strip
      (Result, Duration, Top DPS, Top HPS, Deaths) at the top of every
      pull's body, using position:sticky so it stays visible under the
      filter bar while you scroll through a pull's expanded sections.
-     The exact sticky offset (how far down from the viewport top) is
-     set at runtime via a tiny bit of JS that measures the actual
-     rendered height of the filter bar -- a fixed guessed px value
-     would break any time the filter bar wraps to a different number
-     of lines (e.g. narrower browser window, more boss chips).
+     The exact sticky offset is set at runtime via a tiny bit of JS
+     that measures the actual rendered height of the filter bar -- a
+     fixed guessed px value would break any time the filter bar wraps
+     to a different number of lines (e.g. narrower browser window,
+     more boss/difficulty chips).
 
   3. COLOR-CODED EFFICIENCY -- the Efficiency column in both Raid
-     Cooldown Usage and Defensive Cooldown Usage tables now renders as
-     a colored pill (red / amber / green) instead of plain text, using
+     Cooldown Usage and Defensive Cooldown Usage tables renders as a
+     colored pill (red / amber / green) instead of plain text, using
      the same threshold buckets in both places (see
      EFFICIENCY_LOW_MAX / EFFICIENCY_MID_MAX below).
 
@@ -49,9 +63,7 @@ everything is either plain CSS or inline SVG built as strings):
      of inline-SVG bar charts (raid DPS per pull, deaths per pull) is
      shown once per boss, right under the boss summary line and above
      the individual pull accordions -- kill pulls are colored green,
-     wipes are colored the same muted "wipe" red used elsewhere, so a
-     progression trend (and which attempts were kills) is visible at a
-     glance without opening every pull.
+     wipes are colored the same muted "wipe" red used elsewhere.
 
 CHANGED (prior update) -- every fight-relative timestamp (pull duration
 in each pull's accordion header, death times in the Deaths table, and
@@ -90,6 +102,12 @@ EFFICIENCY_MID_MAX = 70.0
 # player's class can't be resolved (e.g. missing CombatantInfo) --
 # avoids passing None straight into an inline CSS color value.
 _FALLBACK_MARKER_COLOR = "#8a8d9c"
+
+# Canonical raid-difficulty ordering for the filter chips (LFR is the
+# lowest-effort/loosest tuning, Mythic the highest) -- chips are shown
+# in this order whenever more than one is present, rather than in
+# whatever order fights happen to appear in.
+_DIFFICULTY_ORDER = ["LFR", "Normal", "Heroic", "Mythic"]
 
 
 def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
@@ -286,11 +304,34 @@ function applyFilters() {
     var allRoleBoxes = Array.prototype.slice.call(document.querySelectorAll('.role-chip input'));
     var checkedRoles = allRoleBoxes.filter(function(el) { return el.checked; }).map(function(el) { return el.value; });
     var allRolesChecked = allRoleBoxes.length === 0 || checkedRoles.length === allRoleBoxes.length;
+
     var checkedBosses = Array.prototype.map.call(document.querySelectorAll('.boss-chip input:checked'), function(el) { return el.value; });
+
+    var allDifficultyBoxes = Array.prototype.slice.call(document.querySelectorAll('.difficulty-chip input'));
+    var checkedDifficulties = allDifficultyBoxes.filter(function(el) { return el.checked; }).map(function(el) { return el.value; });
+    var allDifficultiesChecked = allDifficultyBoxes.length === 0 || checkedDifficulties.length === allDifficultyBoxes.length;
+
     var query = document.getElementById('player-search').value.trim().toLowerCase();
+
     document.querySelectorAll('.boss-section').forEach(function(section) {
-        section.style.display = checkedBosses.indexOf(section.dataset.boss) !== -1 ? '' : 'none';
+        var bossMatches = checkedBosses.indexOf(section.dataset.boss) !== -1;
+        section.style.display = bossMatches ? '' : 'none';
     });
+
+    // Difficulty filter operates at the PULL level (a boss can be
+    // pulled at more than one difficulty in the same raid night), then
+    // hides the whole boss-section if none of its pulls remain visible.
+    document.querySelectorAll('.boss-section').forEach(function(bossSection) {
+        if (bossSection.style.display === 'none') { return; }
+        var anyPullVisible = false;
+        bossSection.querySelectorAll('.pull-section').forEach(function(pull) {
+            var difficultyOk = allDifficultiesChecked || checkedDifficulties.indexOf(pull.dataset.difficulty) !== -1;
+            pull.style.display = difficultyOk ? '' : 'none';
+            if (difficultyOk) { anyPullVisible = true; }
+        });
+        if (!anyPullVisible) { bossSection.style.display = 'none'; }
+    });
+
     document.querySelectorAll('tr[data-player]').forEach(function(row) {
         var role = row.dataset.role || '';
         var player = (row.dataset.player || '').toLowerCase();
@@ -300,7 +341,7 @@ function applyFilters() {
     });
 }
 function resetFilters() {
-    document.querySelectorAll('.role-chip input, .boss-chip input').forEach(function(el) { el.checked = true; });
+    document.querySelectorAll('.role-chip input, .boss-chip input, .difficulty-chip input').forEach(function(el) { el.checked = true; });
     document.getElementById('player-search').value = '';
     applyFilters();
 }
@@ -311,7 +352,7 @@ function updateStickyOffset() {
     }
 }
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.role-chip input, .boss-chip input').forEach(function(el) {
+    document.querySelectorAll('.role-chip input, .boss-chip input, .difficulty-chip input').forEach(function(el) {
         el.addEventListener('change', applyFilters);
     });
     document.getElementById('player-search').addEventListener('input', applyFilters);
@@ -859,14 +900,27 @@ def _render_pull_sections(data: FightReportData) -> str:
     return "".join(blocks)
 
 
+def _difficulty_chip_value(difficulty: int | None) -> str:
+    """The chip 'value' and pull-section data-difficulty attribute -- the
+    human-readable name itself (e.g. "Heroic"), since difficulty_names
+    is the single source of truth for id -> name and reusing its output
+    directly avoids maintaining a second id/name mapping just for the
+    filter."""
+    return difficulty_names.difficulty_name(difficulty)
+
+
 def render_html(fights: list[FightReportData], title: str = "Raid Report", report_code: str | None = None) -> str:
     groups: OrderedDict[str, list[FightReportData]] = OrderedDict()
     for data in fights:
         groups.setdefault(data.parsed_fight.fight.name, []).append(data)
+
     all_roles_seen = set()
+    all_difficulties_seen: set[str] = set()
     for data in fights:
         for role_info in data.player_roles.values():
             all_roles_seen.add(role_info.role)
+        all_difficulties_seen.add(_difficulty_chip_value(data.parsed_fight.fight.difficulty))
+
     roles_for_filter = [r for r in ("tank", "healer", "melee", "ranged") if r in all_roles_seen] or \
         ["tank", "healer", "melee", "ranged"]
     role_chips = "".join(
@@ -877,6 +931,17 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
         f'<label class="chip boss-chip"><input type="checkbox" value="{_esc(boss)}" checked>{_esc(boss)}</label>'
         for boss in groups.keys()
     )
+    # Show difficulty chips in canonical LFR->Mythic order, but only for
+    # difficulties actually present across the fights passed in; any
+    # unrecognized/custom difficulty name still shows up, appended after
+    # the canonical ones, rather than being silently dropped.
+    difficulties_for_filter = [d for d in _DIFFICULTY_ORDER if d in all_difficulties_seen]
+    difficulties_for_filter += sorted(all_difficulties_seen - set(difficulties_for_filter))
+    difficulty_chips = "".join(
+        f'<label class="chip difficulty-chip"><input type="checkbox" value="{_esc(d)}" checked>{_esc(d)}</label>'
+        for d in difficulties_for_filter
+    )
+
     boss_sections = []
     for boss_name, pulls in groups.items():
         kill_count = sum(1 for p in pulls if p.parsed_fight.fight.kill)
@@ -886,8 +951,9 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
             fight = data.parsed_fight.fight
             status = "kill" if fight.kill else "wipe"
             difficulty_badge = _difficulty_badge_html(fight.difficulty)
+            difficulty_value = _difficulty_chip_value(fight.difficulty)
             pull_summaries.append(f"""
-            <details class="pull-section">
+            <details class="pull-section" data-difficulty="{_esc(difficulty_value)}">
                 <summary>
                     {difficulty_badge}
                     <span class="badge {status}">{status.upper()}</span>
@@ -932,6 +998,10 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
     <div class="filter-group">
         <div class="label">Boss</div>
         <div class="filter-chips">{boss_chips}</div>
+    </div>
+    <div class="filter-group">
+        <div class="label">Difficulty</div>
+        <div class="filter-chips">{difficulty_chips}</div>
     </div>
     <div class="filter-group">
         <div class="label">Player</div>

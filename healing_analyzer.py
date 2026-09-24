@@ -1,28 +1,29 @@
 """
 healing_analyzer.py
-
 Analyzes healing events within a parsed fight: per-healer output
 (total effective healing, overheal, HPS, breakdown by spell) and
 per-target output (who received how much healing, and from whom).
-
 WCL's `amount` field on a Healing event is already the EFFECTIVE
 healing done (HP actually restored); `overheal` is a SEPARATE,
 additive figure for the portion that was wasted on top of that:
     effective healing   = amount              (NOT amount - overheal)
     raw healing attempt = amount + overheal
     overheal %          = overheal / (amount + overheal)
-
 Pet/summon actors are attributed back to the owning player via
 Actor.owner_id, so a "healer" list only ever shows players.
-
 Pure function over a ParsedFight -- no network calls.
+
+CHANGED: summarize_healing()'s header now shows fight duration as M:SS
+(e.g. "3:03") via time_format.format_timestamp(), instead of raw
+seconds (e.g. "183.0s"), matching report.py, death_analyzer.py,
+cooldown_analyzer.py, damage_analyzer.py, damage_done_analyzer.py, and
+html_report.py.
 """
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-
 from data_models import ParsedFight
 import roster
+from time_format import format_timestamp
 
 
 @dataclass
@@ -102,7 +103,7 @@ def summarize_healing(parsed_fight: ParsedFight, summaries: list[HealerSummary])
     if not summaries:
         return f"{parsed_fight.fight.name}: no healing recorded."
     duration_ms = parsed_fight.fight.duration_ms
-    lines = [f"{parsed_fight.fight.name} -- healing ({duration_ms / 1000:.1f}s):"]
+    lines = [f"{parsed_fight.fight.name} -- healing ({format_timestamp(duration_ms)}):"]
     for summary in summaries:
         lines.append(
             f"  {(summary.healer_name or 'Unknown')[:15]:<15} "

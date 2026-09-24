@@ -1,25 +1,27 @@
 """
 damage_done_analyzer.py
-
 Analyzes damage-DONE events within a parsed fight: per-player DPS
 output (total damage done, breakdown by ability, breakdown by target
 hit). This is the "who's dealing damage to the boss" view, as opposed
 to damage_analyzer.py which covers damage TAKEN.
-
 Pet/summon damage is folded into the owning player via
 roster.resolve_to_player, so pets never appear as separate entries.
 Damage from sources that aren't players and can't be resolved to an
 owning player (bosses, adds hitting each other, etc.) is skipped
 entirely -- this module is specifically a player DPS view.
-
 Pure function over a ParsedFight -- no network calls.
+
+CHANGED: summarize_damage_done()'s header now shows fight duration as
+M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
+seconds (e.g. "183.0s"), matching report.py, death_analyzer.py,
+cooldown_analyzer.py, damage_analyzer.py, healing_analyzer.py, and
+html_report.py.
 """
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-
 from data_models import ParsedFight
 import roster
+from time_format import format_timestamp
 
 
 @dataclass
@@ -64,7 +66,7 @@ def summarize_damage_done(parsed_fight: ParsedFight, summaries: list[DamageDoneS
     if not summaries:
         return f"{parsed_fight.fight.name}: no damage-done events recorded."
     duration_ms = parsed_fight.fight.duration_ms
-    lines = [f"{parsed_fight.fight.name} -- damage done ({duration_ms / 1000:.1f}s):"]
+    lines = [f"{parsed_fight.fight.name} -- damage done ({format_timestamp(duration_ms)}):"]
     for summary in summaries:
         lines.append(
             f"  {(summary.player_name or 'Unknown')[:15]:<15} "

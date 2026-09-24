@@ -3,10 +3,11 @@ time_format.py
 One shared helper for rendering fight-relative millisecond timestamps as
 M:SS (e.g. 183000 -> "3:03") instead of raw seconds (e.g. "183.0s"),
 used consistently across report.py, death_analyzer.py,
-cooldown_analyzer.py, and html_report.py.
+cooldown_analyzer.py, html_report.py, damage_analyzer.py,
+healing_analyzer.py, and damage_done_analyzer.py.
 
 Pulled out into its own module (rather than defined once in report.py
-and imported elsewhere) specifically to avoid a circular import: both
+and imported elsewhere) specifically to avoid a circular import:
 death_analyzer.py and cooldown_analyzer.py are imported BY report.py,
 so they can't import format_timestamp back from report.py.
 """
@@ -34,8 +35,8 @@ def fight_relative_ms(raw_ms: float, fight_start_time: float, fight_duration_ms:
     Convert a RAW, report-relative timestamp (the convention used by
     Event.timestamp, and therefore by anything copied straight from it --
     confirmed for CooldownUsage.cast_timestamps in cooldown_analyzer.py,
-    and ASSUMED (not independently verified this session -- flagging
-    for a follow-up check) for DefensiveWindow.cast_timestamp in
+    and ASSUMED (not independently verified -- flagged for a follow-up
+    check) for DefensiveWindow.cast_timestamp in
     defensive_damage_prevention_analyzer.py, since it's built from the
     same underlying Casts events) into a FIGHT-relative offset in
     milliseconds, clamped to [0, fight_duration_ms] so a slightly-off

@@ -1,19 +1,22 @@
 """
 damage_analyzer.py
-
 Analyzes damage-taken events within a parsed fight: per-player output
 (total damage taken, DTPS, breakdown by ability and by source) and
 per-source output (which boss/NPC/ability is dealing the most damage).
 Also surfaces the single biggest hits.
-
 Pure function over a ParsedFight -- no network calls.
+
+CHANGED: summarize_damage_taken()'s header now shows fight duration as
+M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
+seconds (e.g. "183.0s"), matching report.py, death_analyzer.py,
+cooldown_analyzer.py, healing_analyzer.py, damage_done_analyzer.py, and
+html_report.py.
 """
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-
 from data_models import Event, ParsedFight
 import roster
+from time_format import format_timestamp
 
 
 @dataclass
@@ -92,7 +95,6 @@ def get_biggest_hits(
     """
     Return the top_n single damage-taken events by amount, across all
     players.
-
     exclude_player_ids: optional set of player actor IDs to leave out
     of this ranking entirely -- e.g. tanks, who routinely take the
     single biggest hits in a fight simply by doing their job (standing
@@ -101,7 +103,6 @@ def get_biggest_hits(
     noteworthy for a non-tank (a healer/DPS taking a hit that size is
     usually far more interesting -- a mechanic they should have avoided,
     or a spike that needed a defensive/external).
-
     This is a GENERIC exclusion parameter, not hardcoded to "tank" --
     the caller decides which player IDs to pass in (main.py passes the
     set of players WCL's playerDetails currently classifies as tanks
@@ -123,7 +124,7 @@ def summarize_damage_taken(parsed_fight: ParsedFight, summaries: list[DamageTake
     if not summaries:
         return f"{parsed_fight.fight.name}: no damage-taken events recorded."
     duration_ms = parsed_fight.fight.duration_ms
-    lines = [f"{parsed_fight.fight.name} -- damage taken ({duration_ms / 1000:.1f}s):"]
+    lines = [f"{parsed_fight.fight.name} -- damage taken ({format_timestamp(duration_ms)}):"]
     for summary in summaries:
         lines.append(
             f"  {(summary.target_name or 'Unknown')[:15]:<15} "
