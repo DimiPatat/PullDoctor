@@ -4,16 +4,24 @@ consumable_data.py
 SEED_REFERENCE_CONSUMABLES feeds consumable_explorer.py's auto-detect.
 ALL_TRACKED_CONSUMABLES loads from consumables.generated.json.
 
-See consumables_analyzer.py's module docstring for the full 3-round
-story of the "oil" detection bug and its fix. Short version: oils are
-now detected via "does this player have ANY temporary weapon enchant
-at all" (loose_weapon_enchant_match=True, the default) rather than
-matching a specific enchant ID -- because the IDs that would be needed
-for exact matching (Blizzard's internal item-enchantment IDs) don't
-reliably correspond to the Wowhead spell IDs used to source
-ability_ids below, and there's no public table mapping one to the
-other. ability_ids are kept for BEST-EFFORT "which specific oil"
-labeling only -- they no longer gate whether "oil" counts as used.
+VANTUS_RUNE_NAME -- CHANGED: this is now used only as an optional
+FALLBACK exact-match check inside consumables_analyzer.check_vantus_rune(),
+not as the primary detection mechanism. Primary detection now
+auto-detects any aura name matching "Vantus Rune: *" directly from
+each fight's own data, since the exact suffix (e.g. "Tides",
+"Ula'tek", or any other raid/boss name) varies by raid tier -- and
+sometimes TWO distinct Vantus Rune names are simultaneously active
+raid-wide (a leftover one from last tier plus the current one). See
+consumables_analyzer.py's module docstring for the full story behind
+this fix (a real reported bug: a report showing 100% raid-wide uptime
+on two Vantus Rune buffs was nonetheless reported as "0 had it").
+
+Oils are detected via "does this player have ANY temporary weapon
+enchant at all" (loose_weapon_enchant_match=True, the default) rather
+than matching a specific enchant ID -- because the IDs that would be
+needed for exact matching (Blizzard's internal item-enchantment IDs)
+don't reliably correspond to the Wowhead spell IDs used to source
+ability_ids below.
 """
 from __future__ import annotations
 
@@ -33,19 +41,17 @@ SEED_REFERENCE_CONSUMABLES: list[ConsumableDefinition] = [
     ConsumableDefinition("Amani Extract", "health_potion", ability_ids=(1230864,)),
     ConsumableDefinition(
         "Potent Healing Potion", "health_potion", ability_ids=(1262857,),
-        notes="A fished/dropped healing potion (restores 50% health) -- confirmed via Wowhead "
-              "(spell=1262857, item=258138). Found missing from tracking after a real report "
-              "showed a player casting it with no matching entry.",
+        notes="A fished/dropped healing potion (restores 50% health) -- confirmed via Wowhead (spell=1262857, item=258138).",
     ),
 
-    # --- Combat Potions --- (lowercase "of" -- verified against Wowhead)
+    # --- Combat Potions ---
     ConsumableDefinition("Potion of Recklessness", "combat_potion", ability_ids=(1230859,)),
     ConsumableDefinition("Potion of Zealotry", "combat_potion", ability_ids=(1230863,)),
     ConsumableDefinition("Light's Potential", "combat_potion", ability_ids=(1230869,)),
     ConsumableDefinition("Liquid Luster", "combat_potion", ability_ids=(1289745,)),
     ConsumableDefinition("Draught of Rampant Abandon", "combat_potion", ability_ids=(1230860,)),
 
-    # --- Food --- (the real eaten-food buff, not the feast-placement cast)
+    # --- Food ---
     ConsumableDefinition("Hearty Well Fed", "food", notes="The buff gained from eating a Hearty feast for 10+ seconds."),
     ConsumableDefinition("Well Fed", "food", notes="Non-Hearty version of the well-fed buff."),
     ConsumableDefinition(
@@ -53,41 +59,30 @@ SEED_REFERENCE_CONSUMABLES: list[ConsumableDefinition] = [
         notes="This is the CAST of placing the feast, not the eaten-food buff -- secondary signal only.",
     ),
 
-    # --- Oils --- detection_via_weapon_enchant=True,
-    # loose_weapon_enchant_match=True (default) -- see module docstring.
-    # ability_ids kept for best-effort "which oil" labeling only; they
-    # do NOT gate whether "oil" counts as used.
-    ConsumableDefinition(
-        "Thalassian Phoenix Oil", "oil", ability_ids=(1236491,), detection_via_weapon_enchant=True,
-        notes="Detected via ANY weapon temporary enchant present (ID-agnostic) -- "
-              "see consumables_analyzer.py's module docstring.",
-    ),
-    ConsumableDefinition(
-        "Smuggler's Enchanted Edge", "oil", ability_ids=(1236493,), detection_via_weapon_enchant=True,
-        notes="Detected via ANY weapon temporary enchant present (ID-agnostic).",
-    ),
-    ConsumableDefinition(
-        "Oil of Dawn", "oil", ability_ids=(1236492,), detection_via_weapon_enchant=True,
-        notes="Detected via ANY weapon temporary enchant present (ID-agnostic).",
-    ),
+    # --- Oils --- detection_via_weapon_enchant=True, loose_weapon_enchant_match=True (default).
+    ConsumableDefinition("Thalassian Phoenix Oil", "oil", ability_ids=(1236491,), detection_via_weapon_enchant=True),
+    ConsumableDefinition("Smuggler's Enchanted Edge", "oil", ability_ids=(1236493,), detection_via_weapon_enchant=True),
+    ConsumableDefinition("Oil of Dawn", "oil", ability_ids=(1236492,), detection_via_weapon_enchant=True),
 
     # --- Healthstone --- Warlock-provided, not a crafted consumable.
     ConsumableDefinition("Healthstone", "healthstone"),
-    ConsumableDefinition(
-        "Demonic Healthstone", "healthstone", ability_ids=(452930,),
-        notes="The Warlock's own healthstone-equivalent (restores 25% health, +30% over 6s "
-              "when Empowered) -- confirmed via Wowhead (spell=452930, item=224464). Found "
-              "missing from tracking after a real report showed two Warlocks casting this "
-              "and being incorrectly flagged as missing a healthstone.",
-    ),
+    ConsumableDefinition("Demonic Healthstone", "healthstone", notes="Warlock's own healthstone variant."),
 
     # --- Augment Rune --- optional by default.
     ConsumableDefinition("Void-Touched Augment Rune", "augment_rune", optional=True),
 
-    # --- Vantus Rune --- once-per-week; handled via check_vantus_rune().
-    ConsumableDefinition("Vantus Rune: Tides", "vantus_rune"),
+    # --- Vantus Rune --- OPTIONAL (per-raid, not everyone always buys one).
+    # See module docstring: this name is now a FALLBACK ONLY. Primary
+    # detection auto-detects "Vantus Rune: *" directly from each
+    # fight's own data via consumables_analyzer.check_vantus_rune().
+    ConsumableDefinition("Vantus Rune: Tides", "vantus_rune", optional=True),
 ]
 
+# Kept for backward compatibility with any code that still passes a
+# specific name explicitly -- but check_vantus_rune() no longer
+# REQUIRES this to be correct; it's only consulted as a fallback if
+# auto-detection (prefix-matching "Vantus Rune: *") finds nothing at
+# all. Safe to leave as-is, or update to match your current tier.
 VANTUS_RUNE_NAME = "Vantus Rune: Tides"
 
 DEFAULT_CATEGORY_MANDATORY: dict[str, bool] = {

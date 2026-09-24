@@ -1,44 +1,28 @@
 """
 consumables_analyzer.py
 
-Tracks consumable usage per player within a fight.
+Tracks consumable usage per player within a fight (flask, food,
+potions, healthstone, oil, vantus rune, augment rune).
 
-======================================================================
-"oil" DETECTION -- the story so far, and why it's now ID-agnostic:
-======================================================================
-Round 1 bug: oils were checked against player AURA names / Casts
-events. Oils are applied to a weapon BEFORE combat as a "temporary
-weapon enchant" -- they never appear as an aura or a cast at all. This
-made "oil" show as missing for 100% of every roster, regardless of who
-actually used one. (Root-caused from a real report showing 21/21
-players missing oil -- a 100% miss rate is the signature of a
-detection-METHOD bug, not real non-usage.)
-
-Round 2 attempt: check GearItem.temporary_enchant_id on the weapon
-slot against a list of expected enchant IDs (sourced from Wowhead
-spell pages). This STILL didn't work in practice -- Wowhead's spell ID
-for an oil's buff effect and Blizzard's internal item-enchantment ID
-(what WCL's temporaryEnchant field actually reports) are frequently
-DIFFERENT numbers, with no reliable public table mapping one to the
-other to build a config against.
-
-Round 3 (this fix) -- LOOSE, ID-AGNOSTIC MATCH: since a weapon
-temporary enchant is, in practice, ALWAYS an oil in current content
-(older stackable weightstones/sharpening stones were removed from the
-game long ago), checking is simplified to: does this player's Main
-Hand or Off Hand weapon have ANY non-empty temporary_enchant_id at
-all? If yes, the "oil" category is satisfied -- no ID matching
-required, so an unknown/unexpected enchant ID can no longer cause a
-silent false "missing" result. The SPECIFIC oil name reported (for
-display purposes) still tries to match a known ability_id first, and
-falls back to a generic "(unidentified weapon oil)" label if the
-exact ID isn't in our list -- but the "used oil" TRUE/FALSE result no
-longer depends on that match succeeding.
-
-Pure function over a ParsedFight -- no network calls.
+VANTUS RUNE DETECTION -- FIXED (see module-level notes below): a
+Vantus Rune's exact buff NAME changes per raid tier (e.g. "Vantus
+Rune: Tides" in one raid, "Vantus Rune: Ula'tek" in another) and
+sometimes even TWO distinct Vantus Rune names are simultaneously
+active raid-wide (e.g. a leftover one from last tier plus this tier's).
+Requiring an EXACT match against one hardcoded name
+(consumable_data.VANTUS_RUNE_NAME) is fragile for exactly this reason
+-- if it's even slightly wrong for the raid you're actually looking
+at, EVERY player silently shows as missing it, even at 100% real
+uptime. check_vantus_rune() now auto-detects ANY aura name matching
+the "Vantus Rune: <anything>" pattern directly from the fight's own
+CombatantInfo data, rather than trusting one hardcoded string. The
+previously-required exact name is now used ONLY as an additional
+fallback (in case some future implementation doesn't follow the
+"Vantus Rune: X" naming convention at all).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from consumable_schema import ConsumableDefinition
@@ -50,6 +34,38 @@ _OFF_HAND_SLOT = 16
 _WEAPON_SLOTS = (_MAIN_HAND_SLOT, _OFF_HAND_SLOT)
 
 UNIDENTIFIED_OIL_LABEL = "(unidentified weapon oil)"
+
+# Matches "Vantus Rune: <anything>", "Vantus Rune : <anything>" (with a
+# space before the colon), case-insensitively -- deliberately a PREFIX
+# match, not a fixed full-name match, since the part after the colon is
+# different for every raid tier and is exactly what was hardcoded wrong
+# in the reported bug.
+_VANTUS_RUNE_PREFIX_RE = re.compile(r"^vantus\s*rune\s*:", re.IGNORECASE)
+
+
+def is_vantus_rune_aura_name(name: str | None) -> bool:
+    """True if `name` looks like a Vantus Rune buff name (matched by PREFIX, not one hardcoded exact string -- see module docstring)."""
+    return bool(name) and bool(_VANTUS_RUNE_PREFIX_RE.match(name.strip()))
+
+
+def find_vantus_rune_aura_names(parsed_fight: ParsedFight) -> set[str]:
+    """
+    Scan every player's CombatantInfo aura_names for anything matching
+    the Vantus Rune naming pattern. Returns the set of DISTINCT actual
+    names found -- there can genuinely be MORE THAN ONE (e.g. a raid-
+    wide rune plus a boss-specific one, both at 100% uptime, is a
+    valid real-world scenario, not a bug).
+    """
+    found: set[str] = set()
+    fight_roster = roster.get_fight_roster(parsed_fight)
+    for player_id in fight_roster:
+        combatant_info = parsed_fight.combatant_info.get(player_id)
+        if combatant_info is None:
+            continue
+        for name in combatant_info.aura_names:
+            if is_vantus_rune_aura_name(name):
+                found.add(name)
+    return found
 
 
 @dataclass
@@ -66,7 +82,6 @@ class PlayerConsumables:
 
 
 def get_weapon_temporary_enchant_ids(player_id: int, parsed_fight: ParsedFight) -> list[int]:
-    """Every non-empty temporary_enchant_id found on this player's Main Hand/Off Hand, in slot order. Empty list if none/no gear data."""
     combatant_info = parsed_fight.combatant_info.get(player_id)
     if combatant_info is None:
         return []
@@ -77,17 +92,7 @@ def get_weapon_temporary_enchant_ids(player_id: int, parsed_fight: ParsedFight) 
     ]
 
 
-def _has_weapon_enchant_match(
-    definition: ConsumableDefinition, player_id: int, parsed_fight: ParsedFight,
-) -> bool:
-    """
-    True if this player has ANY temporary weapon enchant at all
-    (loose_weapon_enchant_match=True, the default and now-recommended
-    mode -- no ID comparison, since the ID mapping is unreliable), OR
-    (if loose matching is explicitly turned off) their weapon's
-    temporary_enchant_id specifically matches one of
-    definition.ability_ids.
-    """
+def _has_weapon_enchant_match(definition: ConsumableDefinition, player_id: int, parsed_fight: ParsedFight) -> bool:
     enchant_ids = get_weapon_temporary_enchant_ids(player_id, parsed_fight)
     if not enchant_ids:
         return False
@@ -96,12 +101,7 @@ def _has_weapon_enchant_match(
     return any(eid in definition.ability_ids for eid in enchant_ids)
 
 
-def _has_consumable(
-    definition: ConsumableDefinition,
-    player_id: int,
-    parsed_fight: ParsedFight,
-    cast_names_by_player: dict[int, set[str]],
-) -> bool:
+def _has_consumable(definition: ConsumableDefinition, player_id: int, parsed_fight: ParsedFight, cast_names_by_player: dict[int, set[str]]) -> bool:
     combatant_info = parsed_fight.combatant_info.get(player_id)
     if combatant_info and definition.name in combatant_info.aura_names:
         return True
@@ -124,24 +124,7 @@ def _build_cast_names_by_player(parsed_fight: ParsedFight) -> dict[int, set[str]
     return cast_names
 
 
-def _identify_weapon_enchant_name(
-    player_id: int,
-    parsed_fight: ParsedFight,
-    weapon_enchant_definitions: list[ConsumableDefinition],
-) -> str | None:
-    """
-    Best-effort: if this player's actual weapon enchant ID happens to
-    match one specific definition's ability_ids, return THAT
-    definition's name (e.g. "Oil of Dawn"). Otherwise, if they have
-    SOME enchant but it doesn't match any known ID, return the generic
-    UNIDENTIFIED_OIL_LABEL. Returns None if they have no weapon
-    enchant at all. This always returns AT MOST ONE name per player --
-    it does NOT list every configured oil definition just because all
-    of them independently satisfy the "loose" any-enchant check (that
-    was a real bug caught in testing: a player with exactly one weapon
-    enchant was showing all three configured oil NAMES, as if they'd
-    used all three simultaneously).
-    """
+def _identify_weapon_enchant_name(player_id: int, parsed_fight: ParsedFight, weapon_enchant_definitions: list[ConsumableDefinition]) -> str | None:
     enchant_ids = get_weapon_temporary_enchant_ids(player_id, parsed_fight)
     if not enchant_ids:
         return None
@@ -151,19 +134,7 @@ def _identify_weapon_enchant_name(
     return UNIDENTIFIED_OIL_LABEL
 
 
-def analyze_consumables(
-    parsed_fight: ParsedFight,
-    definitions: list[ConsumableDefinition],
-) -> list[PlayerConsumables]:
-    """
-    Build a PlayerConsumables entry for every player in the fight
-    roster. Weapon-enchant-detected definitions (oils) are handled as
-    ONE combined check per player, not per-definition -- a player with
-    a single weapon enchant is credited with exactly one entry (the
-    specific oil name if its ID happens to match, otherwise
-    UNIDENTIFIED_OIL_LABEL), never with every configured oil name at
-    once.
-    """
+def analyze_consumables(parsed_fight: ParsedFight, definitions: list[ConsumableDefinition]) -> list[PlayerConsumables]:
     fight_roster = roster.get_fight_roster(parsed_fight)
     cast_names_by_player = _build_cast_names_by_player(parsed_fight)
     results: dict[int, PlayerConsumables] = {
@@ -180,10 +151,6 @@ def analyze_consumables(
                 player_consumables.items_by_category.setdefault(definition.category, []).append(definition.name)
 
     if weapon_enchant_definitions:
-        # All weapon-enchant definitions are assumed to share one
-        # category (normally "oil") -- if a config ever mixes
-        # categories here, each player still gets one identified/
-        # unidentified name per distinct category present.
         categories_present = {d.category for d in weapon_enchant_definitions}
         for category in categories_present:
             defs_for_category = [d for d in weapon_enchant_definitions if d.category == category]
@@ -198,36 +165,59 @@ def analyze_consumables(
 @dataclass
 class VantusRuneCheck:
     threshold_met: bool
-    players_with: list[str]
-    players_missing: list[str]
+    players_with: list[str] = field(default_factory=list)
+    players_missing: list[str] = field(default_factory=list)
+    # The ACTUAL Vantus Rune aura name(s) detected in this fight's own
+    # data -- surfaced for transparency, so it's immediately visible
+    # (in the report, or while debugging) exactly what was matched,
+    # rather than silently trusting a hardcoded assumption.
+    detected_names: set[str] = field(default_factory=set)
 
 
-def check_vantus_rune(parsed_fight: ParsedFight, vantus_rune_name: str) -> VantusRuneCheck:
+def check_vantus_rune(parsed_fight: ParsedFight, vantus_rune_name: str | None = None) -> VantusRuneCheck:
+    """
+    Checks Vantus Rune usage across the fight roster.
+
+    PRIMARY detection: auto-detects the actual Vantus Rune aura name(s)
+    present in THIS fight's own CombatantInfo data (any name matching
+    "Vantus Rune: *"), and considers a player covered if they have ANY
+    detected name -- correctly handling the case where more than one
+    distinct Vantus Rune is active raid-wide simultaneously.
+
+    vantus_rune_name is now an OPTIONAL FALLBACK ONLY -- an additional
+    exact-match check used in case a fight's buff doesn't follow the
+    standard naming convention at all. It no longer gates detection the
+    way it previously did (see module docstring for why hardcoding one
+    exact name was fragile enough to cause a real reported bug).
+    """
     fight_roster = roster.get_fight_roster(parsed_fight)
     if not fight_roster:
-        return VantusRuneCheck(threshold_met=False, players_with=[], players_missing=[])
+        return VantusRuneCheck(threshold_met=False)
+
+    detected_names = find_vantus_rune_aura_names(parsed_fight)
     cast_names_by_player = _build_cast_names_by_player(parsed_fight)
-    definition = ConsumableDefinition(vantus_rune_name, "vantus_rune", detection_via_weapon_enchant=False)
+    fallback_definition = ConsumableDefinition(vantus_rune_name, "vantus_rune") if vantus_rune_name else None
+
     with_rune: list[str] = []
     without_rune: list[str] = []
     for player_id, actor in fight_roster.items():
-        if _has_consumable(definition, player_id, parsed_fight, cast_names_by_player):
-            with_rune.append(actor.name)
-        else:
-            without_rune.append(actor.name)
+        combatant_info = parsed_fight.combatant_info.get(player_id)
+        has_it = bool(combatant_info and detected_names & combatant_info.aura_names)
+        if not has_it and fallback_definition is not None:
+            has_it = _has_consumable(fallback_definition, player_id, parsed_fight, cast_names_by_player)
+        (with_rune if has_it else without_rune).append(actor.name)
+
     threshold_met = len(with_rune) >= len(fight_roster) / 2
     return VantusRuneCheck(
         threshold_met=threshold_met,
         players_with=sorted(with_rune),
         players_missing=sorted(without_rune) if threshold_met else [],
+        detected_names=detected_names,
     )
 
 
 def summarize_consumables(
-    parsed_fight: ParsedFight,
-    results: list[PlayerConsumables],
-    tracked_categories: list[str],
-    vantus_check: VantusRuneCheck | None = None,
+    parsed_fight: ParsedFight, results: list[PlayerConsumables], tracked_categories: list[str], vantus_check: VantusRuneCheck | None = None,
 ) -> str:
     if not results:
         return f"{parsed_fight.fight.name}: no roster data available for consumable checks."
@@ -242,10 +232,11 @@ def summarize_consumables(
             lines.append(f"  {name:<15} all covered")
     if vantus_check is not None:
         lines.append("")
+        names_note = f" (detected: {', '.join(sorted(vantus_check.detected_names))})" if vantus_check.detected_names else " (no 'Vantus Rune: *' aura detected in this pull)"
         if not vantus_check.threshold_met:
-            lines.append(f"Vantus Rune: not majority-used ({len(vantus_check.players_with)} had it).")
+            lines.append(f"Vantus Rune: not majority-used ({len(vantus_check.players_with)} had it){names_note}.")
         elif vantus_check.players_missing:
-            lines.append(f"Vantus Rune: majority using it -- missing: {', '.join(vantus_check.players_missing)}")
+            lines.append(f"Vantus Rune: majority using it{names_note} -- missing: {', '.join(vantus_check.players_missing)}")
         else:
-            lines.append("Vantus Rune: everyone who should have it, has it.")
+            lines.append(f"Vantus Rune: everyone who should have it, has it{names_note}.")
     return "\n".join(lines)

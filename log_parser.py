@@ -1,14 +1,7 @@
-"""
-log_parser.py
-
-Turns raw WCL JSON (from wcl_api.py) into this app's own data models
-(data_models.py). No network calls here -- pure transformation.
-"""
+"""log_parser.py -- turns raw WCL JSON into this app's own data models. No network calls here."""
 from __future__ import annotations
 
-from data_models import (
-    Ability, Actor, CombatantInfoSnapshot, Event, Fight, GearItem, ParsedFight,
-)
+from data_models import Ability, Actor, CombatantInfoSnapshot, Event, Fight, GearItem, ParsedFight
 
 
 def parse_fight(raw_fight: dict) -> Fight:
@@ -18,10 +11,6 @@ def parse_fight(raw_fight: dict) -> Fight:
         end_time=raw_fight["endTime"], encounter_id=raw_fight.get("encounterID", 0),
         friendly_player_ids=raw_fight.get("friendlyPlayers") or [],
     )
-
-
-def parse_fights(raw_report: dict) -> list[Fight]:
-    return [parse_fight(f) for f in raw_report.get("fights", [])]
 
 
 def parse_actors(raw_master_data: dict) -> dict[int, Actor]:
@@ -37,9 +26,7 @@ def parse_actors(raw_master_data: dict) -> dict[int, Actor]:
 def parse_abilities(raw_master_data: dict) -> dict[int, Ability]:
     abilities: dict[int, Ability] = {}
     for raw_ability in raw_master_data.get("abilities", []):
-        abilities[raw_ability["gameID"]] = Ability(
-            id=raw_ability["gameID"], name=raw_ability.get("name", "Unknown"), type=raw_ability.get("type"),
-        )
+        abilities[raw_ability["gameID"]] = Ability(id=raw_ability["gameID"], name=raw_ability.get("name", "Unknown"), type=raw_ability.get("type"))
     return abilities
 
 
@@ -70,26 +57,6 @@ def parse_events(raw_events_by_type: dict[str, list[dict]], actors: dict[int, Ac
 
 
 def parse_gear_item(raw_gear_item: dict, slot_index: int) -> GearItem:
-    """
-    Convert one raw gear entry from a CombatantInfo event into a GearItem.
-
-    IMPORTANT (fixed): Warcraft Logs' gear array entries do NOT contain
-    a "slot" field at all -- there is no such key in the raw JSON.
-    Instead, each player's 18-item gear array is always ordered by
-    Blizzard's own fixed inventory slot layout (array position 0-17 =
-    Head, Neck, Shoulder, Shirt, Chest, Waist, Legs, Feet, Wrist, Hands,
-    Ring1, Ring2, Trinket1, Trinket2, Back, MainHand, OffHand,
-    Ranged/Relic). The slot number MUST be derived from the item's
-    position in that array (slot_index, passed in via enumerate()),
-    never read from the raw dict itself.
-
-    (Historical bug: an earlier version read raw_gear_item.get("slot",
-    -1), which silently defaulted every gear piece to slot=-1 since
-    that key never exists in real API responses -- breaking every
-    downstream ENCHANTABLE_SLOTS-based check. Confirmed and root-caused
-    against a real report where every player showed "missing enchants
-    on all pieces".)
-    """
     return GearItem(
         slot=slot_index, item_id=raw_gear_item.get("id", 0), quality=raw_gear_item.get("quality", 0),
         item_level=raw_gear_item.get("itemLevel"),
@@ -97,6 +64,50 @@ def parse_gear_item(raw_gear_item: dict, slot_index: int) -> GearItem:
         temporary_enchant_id=raw_gear_item.get("temporaryEnchant"),
         gem_ids=[g.get("id") for g in raw_gear_item.get("gems", []) if g.get("id")],
     )
+
+
+_UNRESOLVED_ABILITY_NAME_PREFIX = "Unknown Aura (ability id"
+
+
+def _resolve_aura_name(raw_aura: dict, ability_id: int, abilities: dict[int, Ability]) -> str:
+    """
+    Resolve one CombatantInfo aura entry to a display name, trying
+    every source available, in order of reliability:
+
+      1. An inline "name" field on the raw aura entry itself, if WCL
+         ever includes one directly (some API responses do -- this is
+         the most direct source of truth when present, since it can't
+         be missing from a SEPARATE query the way master data can be).
+      2. The report's masterData.abilities lookup (the normal path).
+      3. A synthetic placeholder using the raw numeric ability ID.
+
+    WHY STEP 3 MATTERS (this is the actual bug fix): previously, if
+    step 2 failed to find the ability (returned None), the aura was
+    SILENTLY DROPPED from aura_names entirely -- with ZERO indication
+    anything was wrong. This is a real, demonstrated failure mode:
+    Warcraft Logs' masterData.abilities list is built from abilities
+    that appear in the report's OWN event stream (casts/damage/healing/
+    debuffs) -- a passive, always-on raid consumable buff like a
+    Vantus Rune NEVER generates its own Cast/Damage/Healing event (it
+    just sits there, applied once, for the whole raid night), so it
+    can legitimately be MISSING from masterData.abilities even though
+    it is very much genuinely active on every player. Name-based
+    consumable detection (consumables_analyzer.py) would then silently
+    report "0 had it" for a buff at 100% raid-wide uptime, with no
+    error, warning, or visible symptom anywhere -- exactly what was
+    reported and reproduced against real report data.
+
+    Falling back to a synthetic name keeps the aura's PRESENCE visible
+    (e.g. in a diagnostic dump) instead of invisible, even in the worst
+    case where neither an inline name nor a master-data match exists.
+    """
+    inline_name = raw_aura.get("name")
+    if inline_name:
+        return inline_name
+    ability = abilities.get(ability_id)
+    if ability:
+        return ability.name
+    return f"{_UNRESOLVED_ABILITY_NAME_PREFIX} {ability_id})"
 
 
 def parse_combatant_info(raw_combatant_info_events: list[dict], abilities: dict[int, Ability]) -> dict[int, CombatantInfoSnapshot]:
@@ -113,12 +124,10 @@ def parse_combatant_info(raw_combatant_info_events: list[dict], abilities: dict[
             if ability_id is None:
                 continue
             aura_ability_ids.add(ability_id)
-            ability = abilities.get(ability_id)
-            if ability:
-                aura_names.add(ability.name)
-        snapshots[player_id] = CombatantInfoSnapshot(
-            player_id=player_id, gear=gear, aura_ability_ids=aura_ability_ids, aura_names=aura_names,
-        )
+            # See _resolve_aura_name()'s docstring -- this NEVER silently
+            # drops an aura anymore, even if master data can't name it.
+            aura_names.add(_resolve_aura_name(raw_aura, ability_id, abilities))
+        snapshots[player_id] = CombatantInfoSnapshot(player_id=player_id, gear=gear, aura_ability_ids=aura_ability_ids, aura_names=aura_names)
     return snapshots
 
 
