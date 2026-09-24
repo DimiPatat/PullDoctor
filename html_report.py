@@ -8,74 +8,75 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- added a DIFFICULTY filter (LFR / Normal /
+CHANGED (this update) -- "Defensive Cooldown Usage" now gets the SAME
+meter-bar OVERVIEW treatment as Damage Done/Healing/Damage Taken,
+instead of being a single flat per-ability table:
+  - The OVERVIEW table has ONE ROW PER PLAYER (meter bar, class-
+    colored, scaled to the top row), ranked by TOTAL CASTS summed
+    across every tracked defensive ability that player used. Casts is
+    used as the ranking metric (rather than, say, total efficiency)
+    because it's the one number that can be meaningfully SUMMED across
+    different abilities with different cooldowns -- efficiency is
+    already a 0-100% ratio per ability and doesn't sum meaningfully.
+    The overview row also shows an AVERAGE efficiency (a simple mean
+    across that player's distinct abilities, NOT weighted by cooldown
+    length -- weighting by cooldown would let a single fast-cooldown
+    ability dominate a player's average) as a color-coded pill.
+  - A per-player DETAIL block underneath the overview (same visual
+    pattern as the existing "Damage Prevented by Defensives" detail
+    blocks) still shows the full per-ability breakdown: Ability /
+    Casts/Max / Efficiency (pill), so no information is lost versus
+    the previous flat table -- it's now organized per-player instead
+    of being one long list mixing every player's abilities together.
+  - Raid Cooldown Usage (a separate section) is UNCHANGED -- still a
+    single flat per-ability table -- since only Defensive Cooldown
+    Usage was asked to get this treatment. The two sections now look
+    different on purpose: Raid Cooldown Usage is normally a much
+    shorter list (a handful of raid-wide CDs total), while Defensive
+    Cooldown Usage can have one entry per player with distinct
+    class-specific abilities, which is exactly the kind of list a
+    meter-bar overview + drill-down detail helps scan quickly.
+
+CHANGED (prior update) -- added a DIFFICULTY filter (LFR / Normal /
 Heroic / Mythic) alongside the existing Role/Boss/Player filters.
 Difficulty is a per-PULL property (the same boss can legitimately be
 pulled at more than one difficulty in a single raid night, e.g. Heroic
 farm + Mythic progression back to back), so this filters individual
-pull-sections directly (via a new data-difficulty attribute), not
-whole boss-sections the way the Boss filter does. As a bit of extra
-polish: if every pull under a boss gets filtered out by the difficulty
-selection, that boss-section is now ALSO hidden (via a boss-level
-"any visible pull?" check re-run whenever filters change), rather than
-showing an empty expanded boss card with nothing inside it. Only
+pull-sections directly (via a data-difficulty attribute), not whole
+boss-sections the way the Boss filter does. If every pull under a boss
+gets filtered out by the difficulty selection, that boss-section is
+ALSO hidden, rather than showing an empty expanded boss card. Only
 difficulties actually PRESENT across the fights passed in are shown as
-chips (same pattern already used for the Role filter).
+chips.
 
 CHANGED (prior update) -- four report-polish features, all pure
-server-side rendering (no external JS libraries, no charting library --
-everything is either plain CSS or inline SVG built as strings):
-
+server-side rendering (no external JS libraries, no charting library):
   1. TIMELINE STRIP -- a per-pull, three-lane horizontal strip (Deaths /
-     Raid Cooldowns / Defensive Cooldowns) showing WHEN each event
-     happened across the fight, positioned by percentage-of-duration.
-     Native <title> tooltips on hover (no JS needed) show the exact
-     M:SS, player, and ability. Sits at the top of every pull, ABOVE
-     the collapsible sections, so it's visible without expanding
-     anything else.
+     Raid Cooldowns / Defensive Cooldowns), positioned by percentage-of-
+     duration, with native <title> tooltips (M:SS, player, ability).
      NOTE ON TIMESTAMP CONVENTION: CooldownUsage.cast_timestamps (both
      raid and defensive) are RAW, report-relative milliseconds --
-     confirmed directly in cooldown_analyzer.py's source, which never
-     subtracts fight.start_time (the same reason death_analyzer.py has
-     to do that subtraction itself for time_into_fight_ms). This file
+     confirmed directly in cooldown_analyzer.py's source. This file
      uses time_format.fight_relative_ms() to convert those raw values
-     into fight-relative offsets before turning them into a percentage
-     position on the strip. Deaths are unaffected --
-     DeathReport.time_into_fight_ms is already fight-relative.
+     into fight-relative offsets before computing a percentage
+     position. Deaths are unaffected -- DeathReport.time_into_fight_ms
+     is already fight-relative.
+  2. STICKY MINI-SCOREBOARD -- Result/Duration/Top DPS/Top HPS/Deaths,
+     docked via position:sticky, with a runtime JS measurement of the
+     filter bar's actual rendered height (not a guessed fixed offset).
+  3. COLOR-CODED EFFICIENCY -- the Efficiency column in both Raid and
+     Defensive Cooldown Usage tables renders as a red/amber/green pill
+     (see EFFICIENCY_LOW_MAX / EFFICIENCY_MID_MAX below).
+  4. TREND VIEW ACROSS PULLS -- per-boss inline-SVG bar charts (raid
+     DPS per pull, deaths per pull) shown once per boss with 2+ pulls.
 
-  2. STICKY MINI-SCOREBOARD -- a small non-collapsible KPI strip
-     (Result, Duration, Top DPS, Top HPS, Deaths) at the top of every
-     pull's body, using position:sticky so it stays visible under the
-     filter bar while you scroll through a pull's expanded sections.
-     The exact sticky offset is set at runtime via a tiny bit of JS
-     that measures the actual rendered height of the filter bar -- a
-     fixed guessed px value would break any time the filter bar wraps
-     to a different number of lines (e.g. narrower browser window,
-     more boss/difficulty chips).
-
-  3. COLOR-CODED EFFICIENCY -- the Efficiency column in both Raid
-     Cooldown Usage and Defensive Cooldown Usage tables renders as a
-     colored pill (red / amber / green) instead of plain text, using
-     the same threshold buckets in both places (see
-     EFFICIENCY_LOW_MAX / EFFICIENCY_MID_MAX below).
-
-  4. TREND VIEW ACROSS PULLS -- when a boss has 2+ pulls, a small pair
-     of inline-SVG bar charts (raid DPS per pull, deaths per pull) is
-     shown once per boss, right under the boss summary line and above
-     the individual pull accordions -- kill pulls are colored green,
-     wipes are colored the same muted "wipe" red used elsewhere.
-
-CHANGED (prior update) -- every fight-relative timestamp (pull duration
-in each pull's accordion header, death times in the Deaths table, and
-defensive-cooldown cast times in the Damage Prevented by Defensives
-detail tables) renders as M:SS (e.g. "3:03") via
-time_format.format_timestamp(), instead of raw seconds (e.g. "183.0s").
+CHANGED (prior update) -- every fight-relative timestamp renders as
+M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
+seconds (e.g. "183.0s").
 
 CHANGED (prior update) -- "Damage Prevented by Defensives" uses the
-SAME meter-bar treatment (class-colored relative-width bar behind the
-player's name) as Damage Done/Healing/Damage Taken, instead of a plain
-table, including a distinct hatched/dimmed "no estimate possible" bar
-style for players whose only usage was an immunity-type defensive.
+meter-bar treatment, including a distinct hatched/dimmed "no estimate
+possible" bar style for players whose only usage was immunity-type.
 
 Pure rendering: takes a list of already-built FightReportData and
 produces HTML. Does not call any analyzer and does not touch the
@@ -92,21 +93,17 @@ from time_format import format_timestamp, fight_relative_ms
 
 _BG = "#14151a"
 
-# Efficiency-pill thresholds, shared by both Raid Cooldown Usage and
-# Defensive Cooldown Usage tables: below EFFICIENCY_LOW_MAX -> red,
-# between LOW_MAX and MID_MAX -> amber, at or above MID_MAX -> green.
+# Efficiency-pill thresholds, shared by Raid Cooldown Usage, Defensive
+# Cooldown Usage (both the overview's Avg Efficiency and the per-player
+# detail blocks' per-ability Efficiency).
 EFFICIENCY_LOW_MAX = 40.0
 EFFICIENCY_MID_MAX = 70.0
 
 # Neutral fallback color for timeline markers/meter bars when a
-# player's class can't be resolved (e.g. missing CombatantInfo) --
-# avoids passing None straight into an inline CSS color value.
+# player's class can't be resolved (e.g. missing CombatantInfo).
 _FALLBACK_MARKER_COLOR = "#8a8d9c"
 
-# Canonical raid-difficulty ordering for the filter chips (LFR is the
-# lowest-effort/loosest tuning, Mythic the highest) -- chips are shown
-# in this order whenever more than one is present, rather than in
-# whatever order fights happen to appear in.
+# Canonical raid-difficulty ordering for the filter chips.
 _DIFFICULTY_ORDER = ["LFR", "Normal", "Heroic", "Mythic"]
 
 
@@ -128,6 +125,7 @@ NUMERIC_HEADERS = {
     "# Missing",
     "Avg iLvl", "Gems",
     "Total Hits",
+    "Total Casts", "Avg Efficiency",
 }
 
 _CSS = f"""
@@ -318,9 +316,6 @@ function applyFilters() {
         section.style.display = bossMatches ? '' : 'none';
     });
 
-    // Difficulty filter operates at the PULL level (a boss can be
-    // pulled at more than one difficulty in the same raid night), then
-    // hides the whole boss-section if none of its pulls remain visible.
     document.querySelectorAll('.boss-section').forEach(function(bossSection) {
         if (bossSection.style.display === 'none') { return; }
         var anyPullVisible = false;
@@ -408,10 +403,11 @@ def _marker_color(player_id, data: FightReportData) -> str:
 
 def _efficiency_pill(efficiency_fraction: float) -> str:
     """
-    efficiency_fraction is 0.0-1.0 (as returned by CooldownUsage.efficiency()).
+    efficiency_fraction is 0.0-1.0 (as returned by CooldownUsage.efficiency(),
+    or a simple mean of several such values for the Defensive Cooldown
+    Usage OVERVIEW's "Avg Efficiency" column).
     Buckets: < EFFICIENCY_LOW_MAX -> red, < EFFICIENCY_MID_MAX -> amber,
-    else green -- same thresholds for both Raid and Defensive Cooldown
-    Usage tables.
+    else green.
     """
     pct = efficiency_fraction * 100.0
     if pct < EFFICIENCY_LOW_MAX:
@@ -449,8 +445,13 @@ def _row(
 def _meter_row(
     player_id, player_name, data: FightReportData, value: float, max_value: float,
     other_cells: list, numeric_indices: frozenset[int] = frozenset(),
-    no_estimate: bool = False,
+    no_estimate: bool = False, raw_indices: frozenset[int] = frozenset(),
 ) -> str:
+    """
+    raw_indices: same meaning as in _row() -- cell indices (within
+    other_cells) whose content is already-built trusted HTML (e.g. an
+    efficiency pill) that must not be re-escaped.
+    """
     role = _role_of(player_id, data)
     class_name = _class_of(player_id, data)
     bar_color = class_colors.get_class_color(class_name)
@@ -468,7 +469,9 @@ def _meter_row(
         f"</td>"
     )
     other_cells_html = "".join(
-        f'<td class="num">{_esc(c)}</td>' if i in numeric_indices else f"<td>{_esc(c)}</td>"
+        (f'<td class="num">{c}</td>' if i in numeric_indices else f"<td>{c}</td>")
+        if i in raw_indices else
+        (f'<td class="num">{_esc(c)}</td>' if i in numeric_indices else f"<td>{_esc(c)}</td>")
         for i, c in enumerate(other_cells)
     )
     return f"<tr {attrs}>{name_cell}{other_cells_html}</tr>"
@@ -495,6 +498,7 @@ def _section(title: str, body_html: str) -> str:
 
 
 def _cooldown_usage_rows(usages, data: FightReportData, duration_ms: int) -> list[str]:
+    """Flat, one-row-per-(player,ability) table -- still used as-is for Raid Cooldown Usage."""
     headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
     numeric_indices = _numeric_indices(headers)
     return [
@@ -505,6 +509,77 @@ def _cooldown_usage_rows(usages, data: FightReportData, duration_ms: int) -> lis
         ], numeric_indices, raw_indices=frozenset({3}))
         for u in usages
     ]
+
+
+# ---------------------------------------------------------------------
+# Defensive Cooldown Usage: per-player aggregation + detail blocks
+# ---------------------------------------------------------------------
+def _aggregate_cooldown_usage_by_player(usages, duration_ms: int) -> list[tuple]:
+    """
+    Aggregate a flat list of CooldownUsage (one entry per player+ability)
+    into one summary per PLAYER: total casts summed across every tracked
+    ability that player used, and an AVERAGE per-ability efficiency (a
+    simple mean across that player's distinct abilities -- NOT weighted
+    by cooldown length, since weighting would let a single fast-cooldown
+    ability dominate a player's average and drown out a slower, harder-
+    to-use-well cooldown).
+    Returns (player_id, player_name, total_casts, avg_efficiency) tuples,
+    preserving each player's FIRST appearance order from `usages`, then
+    sorted by total_casts descending (the metric the overview meter bar
+    is scaled against).
+    """
+    order: list[int] = []
+    agg: dict[int, dict] = {}
+    for u in usages:
+        key = u.player_id
+        if key not in agg:
+            agg[key] = {"player_name": u.player_name, "total_casts": 0, "efficiencies": []}
+            order.append(key)
+        agg[key]["total_casts"] += u.num_casts
+        agg[key]["efficiencies"].append(u.efficiency(duration_ms))
+    results = []
+    for key in order:
+        v = agg[key]
+        avg_efficiency = sum(v["efficiencies"]) / len(v["efficiencies"]) if v["efficiencies"] else 0.0
+        results.append((key, v["player_name"], v["total_casts"], avg_efficiency))
+    results.sort(key=lambda r: r[2], reverse=True)
+    return results
+
+
+def _cooldown_usage_detail_blocks(usages, data: FightReportData, duration_ms: int) -> list[str]:
+    """
+    Group a flat list of CooldownUsage by player and render a small
+    heading + per-ability table for each -- same visual pattern as the
+    existing per-player window-detail blocks under "Damage Prevented by
+    Defensives", so a player's FULL per-ability breakdown (Ability /
+    Casts/Max / Efficiency pill) is still available, just organized per
+    player underneath the meter-bar overview instead of one long flat
+    list mixing every player's abilities together.
+    """
+    order: list[int] = []
+    by_player: dict[int, list] = {}
+    for u in usages:
+        if u.player_id not in by_player:
+            by_player[u.player_id] = []
+            order.append(u.player_id)
+        by_player[u.player_id].append(u)
+
+    headers = ["Ability", "Casts/Max", "Efficiency"]
+    numeric_indices = _numeric_indices(headers)
+    blocks = []
+    for player_id in order:
+        player_usages = by_player[player_id]
+        player_name = player_usages[0].player_name
+        rows = [
+            _row(u.player_id, u.player_name, data, [
+                u.ability_name, f"{u.num_casts}/{u.theoretical_max_casts(duration_ms)}",
+                _efficiency_pill(u.efficiency(duration_ms)),
+            ], numeric_indices, raw_indices=frozenset({2}))
+            for u in player_usages
+        ]
+        heading = f'<p class="defensive-player-heading">{_esc(player_name)}</p>'
+        blocks.append(f'<div class="defensive-player-block">{heading}' + _table(headers, rows, "") + "</div>")
+    return blocks
 
 
 # ---------------------------------------------------------------------
@@ -701,8 +776,6 @@ def _render_pull_sections(data: FightReportData) -> str:
     duration_ms = data.parsed_fight.fight.duration_ms
     blocks: list[str] = []
 
-    # Mini-scoreboard (feature 2) and timeline strip (feature 1) always
-    # go first, above every collapsible section.
     blocks.append(_mini_scoreboard_html(data))
     blocks.append(_timeline_strip_html(data))
 
@@ -787,21 +860,36 @@ def _render_pull_sections(data: FightReportData) -> str:
             for hit in data.biggest_hits
         ]
         blocks.append(_section("Biggest Hits", _table(headers, rows, "No hits recorded.")))
-    # 7. Raid Cooldown Usage -- collapsed by default. Efficiency column
-    # is now a color-coded pill (feature 3), built in _cooldown_usage_rows.
+    # 7. Raid Cooldown Usage -- collapsed by default. UNCHANGED: still a
+    # single flat per-ability table (efficiency pill), since only
+    # Defensive Cooldown Usage was asked to get the meter-bar treatment.
     if data.cooldown_usages:
         headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
         blocks.append(_section("Raid Cooldown Usage", _table(
             headers, _cooldown_usage_rows(data.cooldown_usages, data, duration_ms),
             "No tracked raid cooldowns used.",
         )))
-    # 8. Defensive Cooldown Usage -- collapsed by default. Same pill treatment.
+    # 8. Defensive Cooldown Usage -- collapsed by default. OVERVIEW now
+    # uses meter bars (same visual treatment as Damage Done/Healing/
+    # Damage Taken), ranked by each player's TOTAL casts summed across
+    # every tracked defensive ability they used. A per-player detail
+    # block underneath still shows the full per-ability breakdown.
     if data.defensive_cooldown_usages:
-        headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
-        blocks.append(_section("Defensive Cooldown Usage", _table(
-            headers, _cooldown_usage_rows(data.defensive_cooldown_usages, data, duration_ms),
-            "No tracked defensive cooldowns used.",
-        )))
+        overview_headers = ["Player", "Total Casts", "Avg Efficiency"]
+        overview_numeric_indices = _numeric_indices(overview_headers[1:])
+        aggregated = _aggregate_cooldown_usage_by_player(data.defensive_cooldown_usages, duration_ms)
+        max_casts = aggregated[0][2] if aggregated else 0
+        overview_rows = [
+            _meter_row(
+                player_id, player_name, data, total_casts, max_casts,
+                [str(total_casts), _efficiency_pill(avg_efficiency)],
+                overview_numeric_indices, raw_indices=frozenset({1}),
+            )
+            for player_id, player_name, total_casts, avg_efficiency in aggregated
+        ]
+        overview_table = _table(overview_headers, overview_rows, "No tracked defensive cooldowns used.")
+        detail_blocks = _cooldown_usage_detail_blocks(data.defensive_cooldown_usages, data, duration_ms)
+        blocks.append(_section("Defensive Cooldown Usage", overview_table + "".join(detail_blocks)))
     # 9. Damage Prevented by Defensives -- collapsed by default.
     if data.defensive_damage_prevention:
         overview_headers = ["Player", "Prevented", "Dmg Taken (windows)", "Windows"]
@@ -901,11 +989,6 @@ def _render_pull_sections(data: FightReportData) -> str:
 
 
 def _difficulty_chip_value(difficulty: int | None) -> str:
-    """The chip 'value' and pull-section data-difficulty attribute -- the
-    human-readable name itself (e.g. "Heroic"), since difficulty_names
-    is the single source of truth for id -> name and reusing its output
-    directly avoids maintaining a second id/name mapping just for the
-    filter."""
     return difficulty_names.difficulty_name(difficulty)
 
 
@@ -931,10 +1014,6 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
         f'<label class="chip boss-chip"><input type="checkbox" value="{_esc(boss)}" checked>{_esc(boss)}</label>'
         for boss in groups.keys()
     )
-    # Show difficulty chips in canonical LFR->Mythic order, but only for
-    # difficulties actually present across the fights passed in; any
-    # unrecognized/custom difficulty name still shows up, appended after
-    # the canonical ones, rather than being silently dropped.
     difficulties_for_filter = [d for d in _DIFFICULTY_ORDER if d in all_difficulties_seen]
     difficulties_for_filter += sorted(all_difficulties_seen - set(difficulties_for_filter))
     difficulty_chips = "".join(
