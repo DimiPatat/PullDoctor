@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "defensive_cooldowns": [
+    {
+      "ability_name": "Alter Time",
+      "cooldown_seconds": 60,
+      "category": "utility",
+      "class_name": "Mage",
+      "ability_ids": [
+        342245,
+        342247
+      ],
+      "notes": "Rewinds health/position on expiry rather than reducing damage as it happens -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Anti-Magic Shell",
+      "cooldown_seconds": 60,
+      "category": "magic_immunity",
+      "class_name": "Death Knight",
+      "ability_ids": [
+        48707
+      ],
+      "notes": "An absorb shield with a fixed HP cap, not a % damage reduction -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Anti-Magic Zone",
+      "cooldown_seconds": 120,
+      "category": "magic_immunity",
+      "class_name": "Death Knight",
+      "ability_ids": [
+        51052
+      ],
+      "notes": "Raid-wide absorb shield with a fixed HP cap -- left unmodeled.",
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 15.0,
+      "duration_seconds": 6.0
+    },
+    {
+      "ability_name": "Astral Shift",
+      "cooldown_seconds": 120,
+      "category": "damage_reduction",
+      "class_name": "Shaman",
+      "ability_ids": [
+        108271
+      ],
+      "notes": null,
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 40,
+      "duration_seconds": 12
+    },
+    {
+      "ability_name": "Barkskin",
+      "cooldown_seconds": 60,
+      "category": "damage_reduction",
+      "class_name": "Druid",
+      "ability_ids": [
+        22812
+      ],
+      "notes": null,
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 20,
+      "duration_seconds": 8
+    },
+    {
+      "ability_name": "Blur",
+      "cooldown_seconds": 60,
+      "category": "damage_reduction",
+      "class_name": "Demon Hunter",
+      "ability_ids": [
+        198589
+      ],
+      "notes": "Confirmed flat (not decaying) on the current live tooltip. As of patch 12.0, Blur is also the primary personal defensive for the new Devourer specialization, not just Havoc.",
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 25.0,
+      "duration_seconds": 10
+    },
+    {
+      "ability_name": "Dark Pact",
+      "cooldown_seconds": 60,
+      "category": "damage_reduction",
+      "class_name": "Warlock",
+      "ability_ids": [
+        108416
+      ],
+      "notes": "Grants an absorb shield (costing health) rather than a flat % reduction -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Darkness",
+      "cooldown_seconds": 300,
+      "category": "damage_reduction",
+      "class_name": "Demon Hunter",
+      "ability_ids": [
+        196718
+      ],
+      "notes": "Raid-wide chance-based partial avoidance (15% chance per hit to avoid ALL damage from that attack), not a guaranteed flat reduction for every hit -- treat this estimate as approximate.",
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 15,
+      "duration_seconds": 8
+    },
+    {
+      "ability_name": "Desperate Prayer",
+      "cooldown_seconds": 90,
+      "category": "damage_reduction",
+      "class_name": "Priest",
+      "ability_ids": [
+        19236
+      ],
+      "notes": "An instant self-heal, not a damage reduction -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Die by the Sword",
+      "cooldown_seconds": 120,
+      "category": "damage_reduction",
+      "class_name": "Warrior",
+      "ability_ids": [
+        118038
+      ],
+      "notes": null,
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 30,
+      "duration_seconds": 8
+    },
+    {
+      "ability_name": "Divine Protection",
+      "cooldown_seconds": 60,
+      "category": "damage_reduction",
+      "class_name": "Paladin",
+      "ability_ids": [
+        403876
+      ],
+      "notes": null,
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 20,
+      "duration_seconds": 8
+    },
+    {
+      "ability_name": "Earth Elemental",
+      "cooldown_seconds": 300,
+      "category": "threat_drop",
+      "class_name": "Shaman",
+      "ability_ids": [
+        198103
+      ],
+      "notes": "A threat-reduction cooldown, not a personal damage reduction -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Exhilaration",
+      "cooldown_seconds": 120,
+      "category": "healing_cd",
+      "class_name": "Hunter",
+      "ability_ids": [
+        109304
+      ],
+      "notes": "An instant self-heal, not a damage reduction -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Fortifying Brew",
+      "cooldown_seconds": 360,
+      "category": "damage_reduction",
+      "class_name": "Monk",
+      "ability_ids": [
+        115203
+      ],
+      "notes": "6 min cooldown confirmed for Brewmaster; Mistweaver/Windwalker have a separate 2 min cooldown (patch 11.0) -- use the Brewmaster value if tracking a tank.",
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 20,
+      "duration_seconds": 15
+    },
+    {
+      "ability_name": "Guardian Spirit",
+      "cooldown_seconds": 180,
+      "category": "external",
+      "class_name": "Priest",
+      "ability_ids": [
+        47788
+      ],
+      "notes": "Increases healing received and prevents a single fatal hit on ANOTHER player, rather than a flat % reduction -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Life Cocoon",
+      "cooldown_seconds": 120,
+      "category": "external",
+      "class_name": "Monk",
+      "ability_ids": [
+        116849
+      ],
+      "notes": "An absorb shield applied to another player -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Metamorphosis",
+      "cooldown_seconds": 120,
+      "category": "damage_reduction",
+      "class_name": "Demon Hunter",
+      "ability_ids": [
+        187827
+      ],
+      "notes": "Vengeance's passive tankiness boost (max HP/heal + armor) varies too much by build to give one trustworthy number -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Obsidian Scales",
+      "cooldown_seconds": 90,
+      "category": "damage_reduction",
+      "class_name": "Evoker",
+      "ability_ids": [
+        363916
+      ],
+      "notes": null,
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 30,
+      "duration_seconds": 12
+    },
+    {
+      "ability_name": "Rallying Cry",
+      "cooldown_seconds": 180,
+      "category": "external",
+      "class_name": "Warrior",
+      "ability_ids": [
+        97462
+      ],
+      "notes": "Raises max HP raid-wide rather than reducing incoming damage -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Spell Reflection",
+      "cooldown_seconds": 25,
+      "category": "immunity",
+      "class_name": "Warrior",
+      "ability_ids": [
+        23920
+      ],
+      "notes": "Reflects the next single spell rather than reducing damage over a window -- doesn't fit the flat-% model, left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Unending Resolve",
+      "cooldown_seconds": 180,
+      "category": "damage_reduction",
+      "class_name": "Warlock",
+      "ability_ids": [
+        104773
+      ],
+      "notes": null,
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 25,
+      "duration_seconds": 8
+    },
+    {
+      "ability_name": "Vampiric Blood",
+      "cooldown_seconds": 90,
+      "category": "damage_reduction",
+      "class_name": "Death Knight",
+      "ability_ids": [
+        55233
+      ],
+      "notes": "Increases max HP and healing received rather than reducing incoming damage -- left unmodeled.",
+      "mitigation_type": "unmodeled",
+      "damage_reduction_percent": null,
+      "duration_seconds": null
+    },
+    {
+      "ability_name": "Zephyr",
+      "cooldown_seconds": 120,
+      "category": "aoe_reduction",
+      "class_name": "Evoker",
+      "ability_ids": [
+        374227
+      ],
+      "notes": "CORRECTED: previously mismodeled here as an 'avoid the next several attacks' dodge effect -- it is actually a flat 20% reduction to AoE-tagged damage specifically (raid-wide, self + 4 nearest allies), not single-target damage. Like Feint, the prevention estimate will overstate savings against single-target hits taken during the window.",
+      "mitigation_type": "percent_reduction",
+      "damage_reduction_percent": 20,
+      "duration_seconds": 8
+    }
+  ]
+}
