@@ -8,46 +8,42 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- "Defensive Cooldown Usage" now gets the SAME
+CHANGED (this update) -- added a third inline-SVG bar chart, "Raid HPS
+by Pull", to the per-boss TREND VIEW (feature 4), alongside the
+existing "Raid DPS by Pull" and "Deaths by Pull" charts. Raid HPS is
+computed the SAME WAY the sticky mini-scoreboard's "Top HPS" stat and
+the Healing section already restrict themselves -- summed effective
+healing from ONLY tank/healer-role players (when role data is
+available; falls back to every healer_summaries entry otherwise) --
+so a raid's overall healing throughput isn't inflated by incidental
+self-healing/leech procs from DPS specs the same way "Raid DPS by
+Pull" isn't diluted by, say, a tank's threat-generation damage being
+treated any differently (it isn't excluded there, since ALL damage
+counts toward raid DPS -- healing is different because non-healer
+"healing" numbers are usually noise, not signal, for a raid-healing
+trend).
+
+CHANGED (prior update) -- "Defensive Cooldown Usage" gets the same
 meter-bar OVERVIEW treatment as Damage Done/Healing/Damage Taken,
 instead of being a single flat per-ability table:
   - The OVERVIEW table has ONE ROW PER PLAYER (meter bar, class-
     colored, scaled to the top row), ranked by TOTAL CASTS summed
-    across every tracked defensive ability that player used. Casts is
-    used as the ranking metric (rather than, say, total efficiency)
-    because it's the one number that can be meaningfully SUMMED across
-    different abilities with different cooldowns -- efficiency is
-    already a 0-100% ratio per ability and doesn't sum meaningfully.
-    The overview row also shows an AVERAGE efficiency (a simple mean
-    across that player's distinct abilities, NOT weighted by cooldown
-    length -- weighting by cooldown would let a single fast-cooldown
-    ability dominate a player's average) as a color-coded pill.
-  - A per-player DETAIL block underneath the overview (same visual
-    pattern as the existing "Damage Prevented by Defensives" detail
-    blocks) still shows the full per-ability breakdown: Ability /
-    Casts/Max / Efficiency (pill), so no information is lost versus
-    the previous flat table -- it's now organized per-player instead
-    of being one long list mixing every player's abilities together.
-  - Raid Cooldown Usage (a separate section) is UNCHANGED -- still a
-    single flat per-ability table -- since only Defensive Cooldown
-    Usage was asked to get this treatment. The two sections now look
-    different on purpose: Raid Cooldown Usage is normally a much
-    shorter list (a handful of raid-wide CDs total), while Defensive
-    Cooldown Usage can have one entry per player with distinct
-    class-specific abilities, which is exactly the kind of list a
-    meter-bar overview + drill-down detail helps scan quickly.
+    across every tracked defensive ability that player used. The
+    overview row also shows an AVERAGE efficiency (simple mean across
+    that player's distinct abilities) as a color-coded pill.
+  - A per-player DETAIL block underneath the overview still shows the
+    full per-ability breakdown: Ability / Casts/Max / Efficiency
+    (pill).
+  - Raid Cooldown Usage (separate section) is UNCHANGED -- still a
+    single flat per-ability table.
 
 CHANGED (prior update) -- added a DIFFICULTY filter (LFR / Normal /
 Heroic / Mythic) alongside the existing Role/Boss/Player filters.
-Difficulty is a per-PULL property (the same boss can legitimately be
-pulled at more than one difficulty in a single raid night, e.g. Heroic
-farm + Mythic progression back to back), so this filters individual
+Difficulty is a per-PULL property, so this filters individual
 pull-sections directly (via a data-difficulty attribute), not whole
-boss-sections the way the Boss filter does. If every pull under a boss
-gets filtered out by the difficulty selection, that boss-section is
-ALSO hidden, rather than showing an empty expanded boss card. Only
-difficulties actually PRESENT across the fights passed in are shown as
-chips.
+boss-sections. If every pull under a boss gets filtered out, that
+boss-section is ALSO hidden. Only difficulties actually PRESENT are
+shown as chips.
 
 CHANGED (prior update) -- four report-polish features, all pure
 server-side rendering (no external JS libraries, no charting library):
@@ -55,20 +51,18 @@ server-side rendering (no external JS libraries, no charting library):
      Raid Cooldowns / Defensive Cooldowns), positioned by percentage-of-
      duration, with native <title> tooltips (M:SS, player, ability).
      NOTE ON TIMESTAMP CONVENTION: CooldownUsage.cast_timestamps (both
-     raid and defensive) are RAW, report-relative milliseconds --
-     confirmed directly in cooldown_analyzer.py's source. This file
-     uses time_format.fight_relative_ms() to convert those raw values
-     into fight-relative offsets before computing a percentage
+     raid and defensive) are RAW, report-relative milliseconds. This
+     file uses time_format.fight_relative_ms() to convert those raw
+     values into fight-relative offsets before computing a percentage
      position. Deaths are unaffected -- DeathReport.time_into_fight_ms
      is already fight-relative.
   2. STICKY MINI-SCOREBOARD -- Result/Duration/Top DPS/Top HPS/Deaths,
      docked via position:sticky, with a runtime JS measurement of the
-     filter bar's actual rendered height (not a guessed fixed offset).
+     filter bar's actual rendered height.
   3. COLOR-CODED EFFICIENCY -- the Efficiency column in both Raid and
-     Defensive Cooldown Usage tables renders as a red/amber/green pill
-     (see EFFICIENCY_LOW_MAX / EFFICIENCY_MID_MAX below).
-  4. TREND VIEW ACROSS PULLS -- per-boss inline-SVG bar charts (raid
-     DPS per pull, deaths per pull) shown once per boss with 2+ pulls.
+     Defensive Cooldown Usage tables renders as a red/amber/green pill.
+  4. TREND VIEW ACROSS PULLS -- per-boss inline-SVG bar charts shown
+     once per boss with 2+ pulls.
 
 CHANGED (prior update) -- every fight-relative timestamp renders as
 M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
@@ -520,13 +514,10 @@ def _aggregate_cooldown_usage_by_player(usages, duration_ms: int) -> list[tuple]
     into one summary per PLAYER: total casts summed across every tracked
     ability that player used, and an AVERAGE per-ability efficiency (a
     simple mean across that player's distinct abilities -- NOT weighted
-    by cooldown length, since weighting would let a single fast-cooldown
-    ability dominate a player's average and drown out a slower, harder-
-    to-use-well cooldown).
+    by cooldown length).
     Returns (player_id, player_name, total_casts, avg_efficiency) tuples,
     preserving each player's FIRST appearance order from `usages`, then
-    sorted by total_casts descending (the metric the overview meter bar
-    is scaled against).
+    sorted by total_casts descending.
     """
     order: list[int] = []
     agg: dict[int, dict] = {}
@@ -549,12 +540,7 @@ def _aggregate_cooldown_usage_by_player(usages, duration_ms: int) -> list[tuple]
 def _cooldown_usage_detail_blocks(usages, data: FightReportData, duration_ms: int) -> list[str]:
     """
     Group a flat list of CooldownUsage by player and render a small
-    heading + per-ability table for each -- same visual pattern as the
-    existing per-player window-detail blocks under "Damage Prevented by
-    Defensives", so a player's FULL per-ability breakdown (Ability /
-    Casts/Max / Efficiency pill) is still available, just organized per
-    player underneath the meter-bar overview instead of one long flat
-    list mixing every player's abilities together.
+    heading + per-ability table for each.
     """
     order: list[int] = []
     by_player: dict[int, list] = {}
@@ -739,23 +725,47 @@ def _trend_view_html(pulls: list[FightReportData]) -> str:
     if len(pulls) < 2:
         return ""
 
-    dps_values, dps_labels, death_values, death_labels, is_kill, pull_labels = [], [], [], [], [], []
+    dps_values, dps_labels = [], []
+    hps_values, hps_labels = [], []
+    death_values, death_labels = [], []
+    is_kill, pull_labels = [], []
+
     for i, data in enumerate(pulls, start=1):
         fight = data.parsed_fight.fight
         duration_s = fight.duration_ms / 1000 if fight.duration_ms > 0 else 0
+
         raid_dps = (
             sum(s.total_damage_done for s in data.damage_done_summaries) / duration_s
             if duration_s > 0 else 0.0
         )
         dps_values.append(raid_dps)
         dps_labels.append(f"{raid_dps:,.0f} raid DPS")
+
+        # Raid HPS: same tank/healer restriction the mini-scoreboard's
+        # "Top HPS" stat and the Healing section already apply (when
+        # role data is available) -- keeps a raid-wide healing trend
+        # from being diluted by incidental non-healer self-healing.
+        has_role_data = bool(data.player_roles)
+        relevant_healers = [
+            s for s in data.healer_summaries
+            if not has_role_data or _role_of(s.healer_id, data) in ("tank", "healer")
+        ]
+        raid_hps = (
+            sum(s.total_effective_healing for s in relevant_healers) / duration_s
+            if duration_s > 0 else 0.0
+        )
+        hps_values.append(raid_hps)
+        hps_labels.append(f"{raid_hps:,.0f} raid HPS")
+
         death_count = len(data.death_reports)
         death_values.append(float(death_count))
         death_labels.append(f"{death_count} death(s)")
+
         is_kill.append(fight.kill)
         pull_labels.append(str(i))
 
     dps_chart = _bar_chart_svg(dps_values, is_kill, dps_labels, pull_labels)
+    hps_chart = _bar_chart_svg(hps_values, is_kill, hps_labels, pull_labels)
     death_chart = _bar_chart_svg(death_values, is_kill, death_labels, pull_labels)
 
     return f"""
@@ -763,6 +773,10 @@ def _trend_view_html(pulls: list[FightReportData]) -> str:
         <div class="trend-chart-block">
             <div class="trend-chart-title">Raid DPS by Pull</div>
             {dps_chart}
+        </div>
+        <div class="trend-chart-block">
+            <div class="trend-chart-title">Raid HPS by Pull</div>
+            {hps_chart}
         </div>
         <div class="trend-chart-block">
             <div class="trend-chart-title">Deaths by Pull</div>
@@ -861,19 +875,16 @@ def _render_pull_sections(data: FightReportData) -> str:
         ]
         blocks.append(_section("Biggest Hits", _table(headers, rows, "No hits recorded.")))
     # 7. Raid Cooldown Usage -- collapsed by default. UNCHANGED: still a
-    # single flat per-ability table (efficiency pill), since only
-    # Defensive Cooldown Usage was asked to get the meter-bar treatment.
+    # single flat per-ability table.
     if data.cooldown_usages:
         headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
         blocks.append(_section("Raid Cooldown Usage", _table(
             headers, _cooldown_usage_rows(data.cooldown_usages, data, duration_ms),
             "No tracked raid cooldowns used.",
         )))
-    # 8. Defensive Cooldown Usage -- collapsed by default. OVERVIEW now
-    # uses meter bars (same visual treatment as Damage Done/Healing/
-    # Damage Taken), ranked by each player's TOTAL casts summed across
-    # every tracked defensive ability they used. A per-player detail
-    # block underneath still shows the full per-ability breakdown.
+    # 8. Defensive Cooldown Usage -- collapsed by default. OVERVIEW uses
+    # meter bars, ranked by total casts summed per player. A per-player
+    # detail block underneath still shows the full per-ability breakdown.
     if data.defensive_cooldown_usages:
         overview_headers = ["Player", "Total Casts", "Avg Efficiency"]
         overview_numeric_indices = _numeric_indices(overview_headers[1:])
