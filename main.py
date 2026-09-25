@@ -23,6 +23,16 @@ By default, only BOSS fights (encounterID != 0) longer than 15 seconds
 are shown when choosing a fight interactively, or accepted when you
 pass an explicit fight_id -- see fight_filters.py.
 
+CHANGED (this update): run_all_analyzers() now also calls
+tier_set_analyzer.analyze_tier_sets(), populating
+FightReportData.tier_set_reports -- used by report.py's markdown Gear
+Check table and html_report.py's HTML Gear Check table to show
+"Tier Pieces" (X/5) and a colored "Tier Set" track string per player,
+replacing the old "Lowest Quality" column. tier_set_data's
+TRACKED_TIER_SET_PIECES starts EMPTY until you populate it via
+`explore_tier_sets.py` + `manage_tier_sets.py add` -- see those
+modules' docstrings.
+
 Usage:
     python main.py <report_code> [fight_id]
     python main.py <report_code> [fight_id] --html
@@ -55,6 +65,8 @@ import raid_cooldowns_config
 import defensive_cooldown_data
 import consumable_data
 import boss_mechanics_config
+import tier_set_analyzer
+import tier_set_data
 from fight_filters import FightFilterCriteria, filter_fights, format_filter_summary
 
 EVENT_TYPES_NEEDED = [
@@ -86,6 +98,7 @@ def run_all_analyzers(parsed, player_roles: dict | None = None) -> report.FightR
     consumable_results = consumables_analyzer.analyze_consumables(parsed, consumable_data.ALL_TRACKED_CONSUMABLES)
     vantus_check = consumables_analyzer.check_vantus_rune(parsed, consumable_data.VANTUS_RUNE_NAME)
     gear_reports = gear_analyzer.analyze_gear(parsed)
+    tier_set_reports = tier_set_analyzer.analyze_tier_sets(parsed)
     avoidable_config = avoidable_damage_analyzer.get_encounter_config(parsed.fight.encounter_id, boss_mechanics_config.ENCOUNTERS)
     avoidable_reports = avoidable_damage_analyzer.analyze_avoidable_damage(parsed, boss_mechanics_config.ENCOUNTERS)
 
@@ -95,8 +108,8 @@ def run_all_analyzers(parsed, player_roles: dict | None = None) -> report.FightR
         damage_done_summaries=damage_done_summaries, cooldown_usages=cooldown_usages,
         defensive_cooldown_usages=defensive_cooldown_usages, defensive_damage_prevention=defensive_damage_prevention,
         consumable_results=consumable_results, consumable_categories=consumable_data.MANDATORY_CATEGORIES,
-        vantus_check=vantus_check, gear_reports=gear_reports, avoidable_reports=avoidable_reports,
-        avoidable_config=avoidable_config, player_roles=player_roles,
+        vantus_check=vantus_check, gear_reports=gear_reports, tier_set_reports=tier_set_reports,
+        avoidable_reports=avoidable_reports, avoidable_config=avoidable_config, player_roles=player_roles,
     )
 
 

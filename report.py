@@ -3,6 +3,16 @@ report.py
 Pure rendering module: combines already-computed analyzer results into
 text/Markdown. No analyzers called here.
 
+CHANGED (this update) -- FightReportData gains a tier_set_reports field
+(list[PlayerTierSetReport], joined by player_id against gear_reports).
+render_markdown()'s Gear Check table drops the "Lowest Quality" column
+(no longer useful now that tier-set tracking exists) and adds two new
+columns in its place: "Tier Pieces" (X/5) and "Tier Set" (the 5-char
+track string, e.g. "MMHCC" -- see tier_set_analyzer.py for the letter
+legend and slot order). A player with no tier_set_reports entry at all
+(e.g. tier_set_analyzer wasn't run) falls back to "n/a"/"-----" rather
+than crashing.
+
 Timestamps are rendered as M:SS (e.g. 3:03) via
 time_format.format_timestamp(), rather than raw seconds (e.g. 183.0s),
 across every section of every output format (.txt, .md, and
@@ -32,6 +42,8 @@ import gear_analyzer
 from healing_analyzer import HealerSummary
 import healing_analyzer
 from player_roles import PlayerRole
+from tier_set_analyzer import PlayerTierSetReport, TOTAL_TIER_SLOTS
+from tier_set_schema import MISSING_TIER_PIECE_CHAR
 from time_format import format_timestamp
 
 
@@ -50,6 +62,7 @@ class FightReportData:
     consumable_categories: list[str] = field(default_factory=list)
     vantus_check: VantusRuneCheck | None = None
     gear_reports: list[PlayerGearReport] = field(default_factory=list)
+    tier_set_reports: list[PlayerTierSetReport] = field(default_factory=list)
     avoidable_reports: list[PlayerAvoidableDamage] = field(default_factory=list)
     avoidable_config: EncounterConfig | None = None
     player_roles: dict[int, PlayerRole] = field(default_factory=dict)
@@ -263,20 +276,35 @@ def render_markdown(data: FightReportData) -> str:
                 lines.append("\n_Vantus Rune: everyone who should have it, has it._")
         lines.append("")
 
-    # 11. Gear Check
+    # 11. Gear Check -- "Lowest Quality" REMOVED, replaced with "Tier
+    # Pieces" (X/5) and "Tier Set" (5-char track string), joined against
+    # tier_set_reports by player_id. A player with no tier_set_reports
+    # entry (e.g. the analyzer wasn't run this pass) falls back to
+    # "n/a" / a string of dashes rather than a crash or a misleading 0/5.
     if data.gear_reports:
         lines.append("## Gear Check")
+        tier_by_player = {t.player_id: t for t in data.tier_set_reports}
         rows = []
         for r in data.gear_reports:
+            tier = tier_by_player.get(r.player_id)
+            if tier is None:
+                tier_pieces_cell = "n/a"
+                tier_set_cell = MISSING_TIER_PIECE_CHAR * TOTAL_TIER_SLOTS
+            elif not tier.has_data:
+                tier_pieces_cell = "n/a"
+                tier_set_cell = MISSING_TIER_PIECE_CHAR * TOTAL_TIER_SLOTS
+            else:
+                tier_pieces_cell = f"{tier.pieces_worn}/{TOTAL_TIER_SLOTS}"
+                tier_set_cell = tier.track_string
+
             if not r.has_data:
-                rows.append([r.player_name, "no data", "no data", "no data", "no data"])
+                rows.append([r.player_name, "no data", tier_pieces_cell, tier_set_cell, "no data", "no data"])
                 continue
-            lowest = gear_analyzer.quality_name(r.lowest_quality) if r.lowest_quality is not None else "n/a"
             rows.append([
-                r.player_name, f"{r.average_item_level:.1f}", lowest,
+                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_cell,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
             ])
-        lines.append(_md_table(["Player", "Avg iLvl", "Lowest Quality", "Gems", "Missing Enchants"], rows))
+        lines.append(_md_table(["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"], rows))
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"

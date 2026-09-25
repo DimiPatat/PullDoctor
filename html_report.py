@@ -8,69 +8,50 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- added a third inline-SVG bar chart, "Raid HPS
+CHANGED (this update) -- Gear Check's "Lowest Quality" column is
+REMOVED (no longer useful now that tier-set tracking exists) and
+replaced with two new columns, joined against tier_set_reports by
+player_id:
+  - "Tier Pieces" -- X/5, how many of the player's 5 tier slots
+    (Head/Shoulder/Chest/Gloves/Legs) are a tracked tier-set item.
+  - "Tier Set" -- the 5-character track string (e.g. "MMHCC"), with
+    EACH LETTER individually color-coded to its upgrade track: Myth
+    orange, Hero purple, Champion blue, Veteran green, Adventurer
+    white, and a dim gray underscore for any slot that isn't a tracked
+    tier piece (e.g. "MM_H_" = missing tier Chest and Legs). See
+    tier_set_analyzer.py for the exact letter legend and slot order.
+  A player with no tier_set_reports entry at all (e.g. the analyzer
+  wasn't run this pass) shows "n/a" / a plain dash string rather than
+  a misleading 0/5.
+
+CHANGED (prior update) -- added a third inline-SVG bar chart, "Raid HPS
 by Pull", to the per-boss TREND VIEW (feature 4), alongside the
 existing "Raid DPS by Pull" and "Deaths by Pull" charts. Raid HPS is
 computed the SAME WAY the sticky mini-scoreboard's "Top HPS" stat and
 the Healing section already restrict themselves -- summed effective
 healing from ONLY tank/healer-role players (when role data is
-available; falls back to every healer_summaries entry otherwise) --
-so a raid's overall healing throughput isn't inflated by incidental
-self-healing/leech procs from DPS specs the same way "Raid DPS by
-Pull" isn't diluted by, say, a tank's threat-generation damage being
-treated any differently (it isn't excluded there, since ALL damage
-counts toward raid DPS -- healing is different because non-healer
-"healing" numbers are usually noise, not signal, for a raid-healing
-trend).
+available; falls back to every healer_summaries entry otherwise).
 
 CHANGED (prior update) -- "Defensive Cooldown Usage" gets the same
 meter-bar OVERVIEW treatment as Damage Done/Healing/Damage Taken,
-instead of being a single flat per-ability table:
-  - The OVERVIEW table has ONE ROW PER PLAYER (meter bar, class-
-    colored, scaled to the top row), ranked by TOTAL CASTS summed
-    across every tracked defensive ability that player used. The
-    overview row also shows an AVERAGE efficiency (simple mean across
-    that player's distinct abilities) as a color-coded pill.
-  - A per-player DETAIL block underneath the overview still shows the
-    full per-ability breakdown: Ability / Casts/Max / Efficiency
-    (pill).
-  - Raid Cooldown Usage (separate section) is UNCHANGED -- still a
-    single flat per-ability table.
+instead of being a single flat per-ability table (ranked by total
+casts per player, with an average-efficiency pill; per-player detail
+blocks underneath still show the full per-ability breakdown).
 
 CHANGED (prior update) -- added a DIFFICULTY filter (LFR / Normal /
-Heroic / Mythic) alongside the existing Role/Boss/Player filters.
-Difficulty is a per-PULL property, so this filters individual
-pull-sections directly (via a data-difficulty attribute), not whole
-boss-sections. If every pull under a boss gets filtered out, that
-boss-section is ALSO hidden. Only difficulties actually PRESENT are
-shown as chips.
+Heroic / Mythic) alongside the existing Role/Boss/Player filters,
+operating at the per-pull level.
 
-CHANGED (prior update) -- four report-polish features, all pure
-server-side rendering (no external JS libraries, no charting library):
-  1. TIMELINE STRIP -- a per-pull, three-lane horizontal strip (Deaths /
-     Raid Cooldowns / Defensive Cooldowns), positioned by percentage-of-
-     duration, with native <title> tooltips (M:SS, player, ability).
-     NOTE ON TIMESTAMP CONVENTION: CooldownUsage.cast_timestamps (both
-     raid and defensive) are RAW, report-relative milliseconds. This
-     file uses time_format.fight_relative_ms() to convert those raw
-     values into fight-relative offsets before computing a percentage
-     position. Deaths are unaffected -- DeathReport.time_into_fight_ms
-     is already fight-relative.
-  2. STICKY MINI-SCOREBOARD -- Result/Duration/Top DPS/Top HPS/Deaths,
-     docked via position:sticky, with a runtime JS measurement of the
-     filter bar's actual rendered height.
-  3. COLOR-CODED EFFICIENCY -- the Efficiency column in both Raid and
-     Defensive Cooldown Usage tables renders as a red/amber/green pill.
-  4. TREND VIEW ACROSS PULLS -- per-boss inline-SVG bar charts shown
-     once per boss with 2+ pulls.
+CHANGED (prior update) -- four report-polish features: TIMELINE STRIP
+(per-pull three-lane Deaths/Raid CDs/Defensive CDs strip), STICKY
+MINI-SCOREBOARD (Result/Duration/Top DPS/Top HPS/Deaths), COLOR-CODED
+EFFICIENCY pills, and TREND VIEW ACROSS PULLS (inline-SVG bar charts
+per boss with 2+ pulls).
 
 CHANGED (prior update) -- every fight-relative timestamp renders as
-M:SS (e.g. "3:03") via time_format.format_timestamp(), instead of raw
-seconds (e.g. "183.0s").
-
-CHANGED (prior update) -- "Damage Prevented by Defensives" uses the
-meter-bar treatment, including a distinct hatched/dimmed "no estimate
-possible" bar style for players whose only usage was immunity-type.
+M:SS via time_format.format_timestamp(). "Damage Prevented by
+Defensives" uses the meter-bar treatment with a distinct hatched/dimmed
+"no estimate possible" bar style for immunity-only players.
 
 Pure rendering: takes a list of already-built FightReportData and
 produces HTML. Does not call any analyzer and does not touch the
@@ -83,6 +64,9 @@ import class_colors
 import difficulty_names
 import gear_analyzer
 from report import FightReportData
+from tier_set_analyzer import TOTAL_TIER_SLOTS
+from tier_set_data import track_color_for_letter
+from tier_set_schema import MISSING_TIER_PIECE_CHAR
 from time_format import format_timestamp, fight_relative_ms
 
 _BG = "#14151a"
@@ -96,6 +80,11 @@ EFFICIENCY_MID_MAX = 70.0
 # Neutral fallback color for timeline markers/meter bars when a
 # player's class can't be resolved (e.g. missing CombatantInfo).
 _FALLBACK_MARKER_COLOR = "#8a8d9c"
+
+# Color for a "_" (not-a-tracked-tier-piece) character in the Tier Set
+# track string -- deliberately dim/gray rather than any track color,
+# since it represents an absence, not a low-quality track.
+_TIER_SET_MISSING_COLOR = "#565968"
 
 # Canonical raid-difficulty ordering for the filter chips.
 _DIFFICULTY_ORDER = ["LFR", "Normal", "Heroic", "Mythic"]
@@ -117,7 +106,7 @@ NUMERIC_HEADERS = {
     "Casts/Max", "Efficiency",
     "Prevented", "Dmg Taken (windows)", "Windows", "Dmg Taken",
     "# Missing",
-    "Avg iLvl", "Gems",
+    "Avg iLvl", "Gems", "Tier Pieces",
     "Total Hits",
     "Total Casts", "Avg Efficiency",
 }
@@ -233,6 +222,12 @@ td.meter-cell {{ position: relative; padding: 0; }}
 .eff-low  {{ background: rgba(255,107,107,0.18); color: var(--wipe); }}
 .eff-mid  {{ background: rgba(255,184,77,0.18);  color: var(--warn); }}
 .eff-high {{ background: rgba(61,220,132,0.18);  color: var(--kill); }}
+
+/* ---- Tier Set track string ---- */
+.tier-set-string {{
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-weight: 700; font-size: 13.5px; letter-spacing: 0.06em;
+}}
 
 /* ---- Sticky mini-scoreboard (feature 2) ---- */
 .mini-scoreboard {{
@@ -373,6 +368,21 @@ def _difficulty_badge_html(difficulty: int | None) -> str:
     )
 
 
+def _tier_set_string_html(track_string: str) -> str:
+    """
+    Render a 5-char tier-set track string (e.g. "MM_H_") as individually
+    color-coded characters -- each letter gets its track's color, and
+    each MISSING_TIER_PIECE_CHAR ("_") renders dim gray instead of any
+    track color, so a missing slot never gets visually confused with a
+    real (if low) track.
+    """
+    spans = []
+    for ch in track_string:
+        color = _TIER_SET_MISSING_COLOR if ch == MISSING_TIER_PIECE_CHAR else track_color_for_letter(ch)
+        spans.append(f'<span style="color:{color};">{_esc(ch)}</span>')
+    return f'<span class="tier-set-string">{"".join(spans)}</span>'
+
+
 def _role_of(player_id, data: FightReportData) -> str:
     if player_id is None:
         return ""
@@ -419,9 +429,10 @@ def _row(
 ) -> str:
     """
     raw_indices: cell indices whose content is ALREADY-BUILT, TRUSTED
-    HTML (e.g. an efficiency pill span) that must NOT be passed through
-    _esc() a second time -- every such cell is built exclusively by this
-    module itself (never from raw log/user data), so this is safe.
+    HTML (e.g. an efficiency pill span, or a colored tier-set string)
+    that must NOT be passed through _esc() a second time -- every such
+    cell is built exclusively by this module itself (never from raw
+    log/user data), so this is safe.
     """
     role = _role_of(player_id, data)
     attrs = f'data-player="{_esc(player_name)}"'
@@ -443,8 +454,8 @@ def _meter_row(
 ) -> str:
     """
     raw_indices: same meaning as in _row() -- cell indices (within
-    other_cells) whose content is already-built trusted HTML (e.g. an
-    efficiency pill) that must not be re-escaped.
+    other_cells) whose content is already-built trusted HTML that must
+    not be re-escaped.
     """
     role = _role_of(player_id, data)
     class_name = _class_of(player_id, data)
@@ -509,16 +520,6 @@ def _cooldown_usage_rows(usages, data: FightReportData, duration_ms: int) -> lis
 # Defensive Cooldown Usage: per-player aggregation + detail blocks
 # ---------------------------------------------------------------------
 def _aggregate_cooldown_usage_by_player(usages, duration_ms: int) -> list[tuple]:
-    """
-    Aggregate a flat list of CooldownUsage (one entry per player+ability)
-    into one summary per PLAYER: total casts summed across every tracked
-    ability that player used, and an AVERAGE per-ability efficiency (a
-    simple mean across that player's distinct abilities -- NOT weighted
-    by cooldown length).
-    Returns (player_id, player_name, total_casts, avg_efficiency) tuples,
-    preserving each player's FIRST appearance order from `usages`, then
-    sorted by total_casts descending.
-    """
     order: list[int] = []
     agg: dict[int, dict] = {}
     for u in usages:
@@ -538,10 +539,6 @@ def _aggregate_cooldown_usage_by_player(usages, duration_ms: int) -> list[tuple]
 
 
 def _cooldown_usage_detail_blocks(usages, data: FightReportData, duration_ms: int) -> list[str]:
-    """
-    Group a flat list of CooldownUsage by player and render a small
-    heading + per-ability table for each.
-    """
     order: list[int] = []
     by_player: dict[int, list] = {}
     for u in usages:
@@ -741,10 +738,6 @@ def _trend_view_html(pulls: list[FightReportData]) -> str:
         dps_values.append(raid_dps)
         dps_labels.append(f"{raid_dps:,.0f} raid DPS")
 
-        # Raid HPS: same tank/healer restriction the mini-scoreboard's
-        # "Top HPS" stat and the Healing section already apply (when
-        # role data is available) -- keeps a raid-wide healing trend
-        # from being diluted by incidental non-healer self-healing.
         has_role_data = bool(data.player_roles)
         relevant_healers = [
             s for s in data.healer_summaries
@@ -980,21 +973,32 @@ def _render_pull_sections(data: FightReportData) -> str:
                 vantus_line = "Vantus Rune: everyone who should have it, has it."
             consumables_html += f'<p class="empty-note">{_esc(vantus_line)}</p>'
         blocks.append(_section("Consumables", consumables_html))
-    # 11. Gear Check -- collapsed by default.
+    # 11. Gear Check -- collapsed by default. "Lowest Quality" REMOVED;
+    # replaced with "Tier Pieces" (X/5) and "Tier Set" (colored track
+    # string), joined against tier_set_reports by player_id.
     if data.gear_reports:
-        headers = ["Player", "Avg iLvl", "Lowest Quality", "Gems", "Missing Enchants"]
+        headers = ["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"]
         numeric_indices = _numeric_indices(headers)
+        tier_by_player = {t.player_id: t for t in data.tier_set_reports}
         rows = []
         for r in data.gear_reports:
+            tier = tier_by_player.get(r.player_id)
+            if tier is None or not tier.has_data:
+                tier_pieces_cell = "n/a"
+                tier_set_html = _tier_set_string_html(MISSING_TIER_PIECE_CHAR * TOTAL_TIER_SLOTS)
+            else:
+                tier_pieces_cell = f"{tier.pieces_worn}/{TOTAL_TIER_SLOTS}"
+                tier_set_html = _tier_set_string_html(tier.track_string)
+
             if not r.has_data:
-                rows.append(_row(r.player_id, r.player_name, data,
-                                  [r.player_name, "no data", "no data", "no data", "no data"], numeric_indices))
+                rows.append(_row(r.player_id, r.player_name, data, [
+                    r.player_name, "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
+                ], numeric_indices, raw_indices=frozenset({3})))
                 continue
-            lowest = gear_analyzer.quality_name(r.lowest_quality) if r.lowest_quality is not None else "n/a"
             rows.append(_row(r.player_id, r.player_name, data, [
-                r.player_name, f"{r.average_item_level:.1f}", lowest,
+                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
-            ], numeric_indices))
+            ], numeric_indices, raw_indices=frozenset({3})))
         blocks.append(_section("Gear Check", _table(headers, rows, "No gear data.")))
     return "".join(blocks)
 
