@@ -8,7 +8,20 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- Gear Check's "Lowest Quality" column is
+CHANGED (this update) -- every pull's summary line now shows "Pulled
+by <Player>" alongside the existing difficulty badge / kill-wipe badge
+/ duration, using _find_puller_name(): the first PLAYER-SOURCED Casts
+or DamageDone event in the fight, chronologically (events are already
+sorted by timestamp upstream). Pet-sourced actions (e.g. a Hunter's pet
+auto-attacking before its owner does anything) are folded back to the
+OWNING PLAYER via roster.resolve_to_player(), consistent with how every
+other analyzer in this project treats pet activity -- so "Pulled by"
+always names an actual raider, never a pet/guardian. If no player-
+sourced Casts/DamageDone event exists at all (e.g. an unusually short
+or gap-filled log), the note is omitted entirely rather than showing a
+misleading blank or "Unknown".
+
+CHANGED (prior update) -- Gear Check's "Lowest Quality" column is
 REMOVED (no longer useful now that tier-set tracking exists) and
 replaced with two new columns, joined against tier_set_reports by
 player_id:
@@ -55,7 +68,11 @@ Defensives" uses the meter-bar treatment with a distinct hatched/dimmed
 
 Pure rendering: takes a list of already-built FightReportData and
 produces HTML. Does not call any analyzer and does not touch the
-network.
+network. _find_puller_name() is the one exception to "does not call
+any analyzer" -- it's a lightweight, self-contained lookup over data
+already present on parsed_fight (events + actors), not a separate
+analyzer module, matching how _role_of()/_class_of() already read
+parsed_fight directly elsewhere in this file.
 """
 from __future__ import annotations
 import html as html_module
@@ -63,6 +80,7 @@ from collections import OrderedDict
 import class_colors
 import difficulty_names
 import gear_analyzer
+import roster
 from report import FightReportData
 from tier_set_analyzer import TOTAL_TIER_SLOTS
 from tier_set_data import track_color_for_letter
@@ -85,6 +103,12 @@ _FALLBACK_MARKER_COLOR = "#8a8d9c"
 # track string -- deliberately dim/gray rather than any track color,
 # since it represents an absence, not a low-quality track.
 _TIER_SET_MISSING_COLOR = "#565968"
+
+# Which Casts/DamageDone events count as "starting" a pull, for the
+# "Pulled by" note -- deliberately just these two data types (not
+# Healing/Buffs/Resources/CombatantInfo/etc.), since those are the only
+# two that represent an actual OFFENSIVE/engaging action initiating combat.
+_PULL_STARTING_DATA_TYPES = ("Casts", "DamageDone")
 
 # Canonical raid-difficulty ordering for the filter chips.
 _DIFFICULTY_ORDER = ["LFR", "Normal", "Heroic", "Mythic"]
@@ -170,6 +194,9 @@ details.pull-section > summary::-webkit-details-marker {{ display: none; }}
 .badge {{ border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; letter-spacing: .03em; }}
 .badge.kill {{ background: rgba(61,220,132,0.18); color: var(--kill); }}
 .badge.wipe {{ background: rgba(255,107,107,0.18); color: var(--wipe); }}
+.pulled-by {{
+    color: var(--text-dim); font-weight: 400; font-size: 12px; font-style: italic;
+}}
 .pull-body {{ padding: 6px 16px 16px 28px; }}
 details.section-details {{ margin: 0 0 10px 0; border: none; background: transparent; }}
 details.section-details > summary {{
@@ -214,7 +241,7 @@ td.meter-cell {{ position: relative; padding: 0; }}
     font-size: 11.5px; color: var(--text-dim); margin: 0 0 6px 0;
 }}
 
-/* ---- Efficiency pills (feature 3) ---- */
+/* ---- Efficiency pills ---- */
 .eff-pill {{
     display: inline-block; padding: 2px 9px; border-radius: 10px;
     font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12px;
@@ -229,7 +256,7 @@ td.meter-cell {{ position: relative; padding: 0; }}
     font-weight: 700; font-size: 13.5px; letter-spacing: 0.06em;
 }}
 
-/* ---- Sticky mini-scoreboard (feature 2) ---- */
+/* ---- Sticky mini-scoreboard ---- */
 .mini-scoreboard {{
     position: sticky; top: var(--sticky-top); z-index: 5;
     display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
@@ -246,7 +273,7 @@ td.meter-cell {{ position: relative; padding: 0; }}
 .mini-scoreboard .stat-value.wipe {{ color: var(--wipe); }}
 .mini-scoreboard .stat-sub {{ font-size: 10.5px; color: var(--text-dim); }}
 
-/* ---- Timeline strip (feature 1) ---- */
+/* ---- Timeline strip ---- */
 .timeline-strip {{ margin: 0 0 16px 0; }}
 .timeline-legend {{
     display: flex; gap: 16px; font-size: 10.5px; color: var(--text-dim); margin-bottom: 5px;
@@ -276,7 +303,7 @@ td.meter-cell {{ position: relative; padding: 0; }}
 .tl-marker.raidcd {{ width: 9px; height: 9px; border-radius: 50%; }}
 .tl-marker.defcd {{ width: 8px; height: 8px; border-radius: 2px; }}
 
-/* ---- Trend view across pulls (feature 4) ---- */
+/* ---- Trend view across pulls ---- */
 .trend-view {{
     display: flex; flex-wrap: wrap; gap: 28px; padding: 4px 16px 14px 16px;
 }}
@@ -366,6 +393,30 @@ def _difficulty_badge_html(difficulty: int | None) -> str:
         f'<span class="badge" style="background-color:rgba({r},{g},{b},0.18);color:{color};">'
         f"{_esc(name.upper())}</span>"
     )
+
+
+def _find_puller_name(parsed_fight) -> str | None:
+    """
+    Find who "pulled" the encounter: the first PLAYER-sourced Casts or
+    DamageDone event in the fight, chronologically (parsed_fight.events
+    is already sorted by timestamp upstream in log_parser.py). A pet/
+    guardian-sourced action (e.g. a Hunter's pet auto-attacking before
+    its owner does anything) resolves back to the OWNING PLAYER via
+    roster.resolve_to_player() -- the same pet-to-owner folding every
+    other analyzer in this project already applies -- so this always
+    names an actual raider, never a pet.
+
+    Returns None if no such event exists at all (e.g. an unusually
+    short or gap-filled log) -- the caller omits the "Pulled by" note
+    entirely in that case, rather than showing a blank or "Unknown".
+    """
+    for event in parsed_fight.events:
+        if event.data_type not in _PULL_STARTING_DATA_TYPES:
+            continue
+        player = roster.resolve_to_player(event.source_id, parsed_fight.actors)
+        if player is not None:
+            return player.name
+    return None
 
 
 def _tier_set_string_html(track_string: str) -> str:
@@ -566,7 +617,7 @@ def _cooldown_usage_detail_blocks(usages, data: FightReportData, duration_ms: in
 
 
 # ---------------------------------------------------------------------
-# Feature 2: sticky mini-scoreboard
+# Sticky mini-scoreboard
 # ---------------------------------------------------------------------
 def _mini_scoreboard_html(data: FightReportData) -> str:
     fight = data.parsed_fight.fight
@@ -625,7 +676,7 @@ def _mini_scoreboard_html(data: FightReportData) -> str:
 
 
 # ---------------------------------------------------------------------
-# Feature 1: timeline strip
+# Timeline strip
 # ---------------------------------------------------------------------
 def _position_percent(ms: int, duration_ms: int) -> float:
     if duration_ms <= 0:
@@ -691,7 +742,7 @@ def _timeline_strip_html(data: FightReportData) -> str:
 
 
 # ---------------------------------------------------------------------
-# Feature 4: trend view across pulls (per boss, 2+ pulls only)
+# Trend view across pulls (per boss, 2+ pulls only)
 # ---------------------------------------------------------------------
 def _bar_chart_svg(
     values: list[float], is_kill: list[bool], value_labels: list[str], pull_labels: list[str],
@@ -1046,12 +1097,17 @@ def render_html(fights: list[FightReportData], title: str = "Raid Report", repor
             status = "kill" if fight.kill else "wipe"
             difficulty_badge = _difficulty_badge_html(fight.difficulty)
             difficulty_value = _difficulty_chip_value(fight.difficulty)
+
+            puller_name = _find_puller_name(data.parsed_fight)
+            puller_html = f'<span class="pulled-by">Pulled by {_esc(puller_name)}</span>' if puller_name else ""
+
             pull_summaries.append(f"""
             <details class="pull-section" data-difficulty="{_esc(difficulty_value)}">
                 <summary>
                     {difficulty_badge}
                     <span class="badge {status}">{status.upper()}</span>
                     Pull {i} &mdash; {format_timestamp(fight.duration_ms)}
+                    {puller_html}
                 </summary>
                 <div class="pull-body">{_render_pull_sections(data)}</div>
             </details>
