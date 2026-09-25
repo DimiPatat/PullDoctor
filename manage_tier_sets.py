@@ -2,8 +2,18 @@
 manage_tier_sets.py
 CLI for viewing/editing tier_sets.generated.json directly -- no report
 required. Mirrors the shape of the project's other manage_*.py tools
-(list/add/remove/validate/repair), plus a tier-set-specific
-`set-breakpoint` command for the item-level track table.
+(list/add/remove/validate/repair), plus tier-set-specific
+`set-breakpoint` commands for the item-level track table.
+
+CHANGED: `set-breakpoint` now accepts BOTH --min-ilvl and --max-ilvl
+(max is optional; omit it to leave that track's existing ceiling
+unchanged, or pass an empty string to explicitly clear it to "no
+ceiling"). This was needed to fix a real reported bug where a track's
+top 2 upgrade ranks (which share the exact same item level as the next
+track's bottom 2 ranks, by Blizzard's own design) were always shown as
+the HIGHER track -- see tier_set_data.py's module docstring for the
+full explanation. `set-breakpoint` previously only tracked a floor per
+track, which couldn't express the fix at all.
 
 Usage:
     python manage_tier_sets.py list
@@ -11,7 +21,9 @@ Usage:
     python manage_tier_sets.py add
         (no args -> interactive prompts)
     python manage_tier_sets.py remove --class "Paladin" --slot 0
-    python manage_tier_sets.py set-breakpoint --track M --min-ilvl 318
+    python manage_tier_sets.py set-breakpoint --track H --min-ilvl 305 --max-ilvl 321
+    python manage_tier_sets.py set-breakpoint --track M --min-ilvl 318 --max-ilvl ""
+        (empty string clears the ceiling entirely -- "no upper bound")
     python manage_tier_sets.py validate
     python manage_tier_sets.py repair
 """
@@ -41,6 +53,12 @@ def _resolve_slot(raw: str) -> int:
         raise SystemExit(f"Unrecognized slot '{raw}'. Valid tier slots: {valid}")
 
 
+def _format_range(bp: TierTrackBreakpoint) -> str:
+    if bp.max_item_level is None:
+        return f"{bp.min_item_level:.0f}+ (no ceiling)"
+    return f"{bp.min_item_level:.0f}-{bp.max_item_level:.0f}"
+
+
 def cmd_list(_args) -> None:
     from tier_set_data import TRACKED_TIER_SET_PIECES
     if not TRACKED_TIER_SET_PIECES:
@@ -59,7 +77,7 @@ def cmd_list(_args) -> None:
 
     print(f"\nTrack breakpoints ({'custom' if TRACK_BREAKPOINTS is not SEED_TRACK_BREAKPOINTS else 'seed default'}):")
     for bp in TRACK_BREAKPOINTS:
-        print(f"  {bp.track_letter}  {bp.track_name:<11} starts at ilvl {bp.min_item_level:.0f}")
+        print(f"  {bp.track_letter}  {bp.track_name:<11} ilvl {_format_range(bp)}")
 
 
 def cmd_add(args) -> None:
@@ -93,14 +111,23 @@ def cmd_set_breakpoint(args) -> None:
     current = {bp.track_letter: bp for bp in TRACK_BREAKPOINTS}
     seed_by_letter = {bp.track_letter: bp for bp in SEED_TRACK_BREAKPOINTS}
     existing = current.get(args.track) or seed_by_letter[args.track]
+
+    new_min = args.min_ilvl if args.min_ilvl is not None else existing.min_item_level
+    if args.max_ilvl is None:
+        new_max = existing.max_item_level  # leave unchanged
+    elif args.max_ilvl == "":
+        new_max = None  # explicitly cleared -- "no ceiling"
+    else:
+        new_max = float(args.max_ilvl)
+
     updated = TierTrackBreakpoint(
-        min_item_level=args.min_ilvl, track_letter=existing.track_letter,
-        track_name=existing.track_name, color_hex=existing.color_hex,
+        min_item_level=new_min, max_item_level=new_max,
+        track_letter=existing.track_letter, track_name=existing.track_name, color_hex=existing.color_hex,
     )
     current[args.track] = updated
     new_breakpoints = sorted(current.values(), key=lambda b: b.min_item_level)
     path = tier_set_config_io.save_track_breakpoints(new_breakpoints, verbose=True)
-    print(f"\n{updated.track_name} now starts at ilvl {updated.min_item_level:.0f}. Saved to {path}")
+    print(f"\n{updated.track_name} now covers ilvl {_format_range(updated)}. Saved to {path}")
 
 
 def cmd_validate(_args) -> None:
@@ -133,9 +160,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
     p_remove.add_argument("--slot", required=True)
     p_remove.set_defaults(func=cmd_remove)
 
-    p_bp = subparsers.add_parser("set-breakpoint", help="Override one track's item-level floor.")
+    p_bp = subparsers.add_parser("set-breakpoint", help="Override one track's item-level floor and/or ceiling.")
     p_bp.add_argument("--track", required=True, help="Track letter: A, V, C, H, or M")
-    p_bp.add_argument("--min-ilvl", dest="min_ilvl", type=float, required=True)
+    p_bp.add_argument("--min-ilvl", dest="min_ilvl", type=float, default=None, help="New floor (leave unset to keep current)")
+    p_bp.add_argument(
+        "--max-ilvl", dest="max_ilvl", default=None,
+        help="New ceiling (leave unset to keep current; pass an empty string \"\" to explicitly clear it to 'no ceiling')",
+    )
     p_bp.set_defaults(func=cmd_set_breakpoint)
 
     subparsers.add_parser("validate", help="Check tier_sets.generated.json is valid JSON.").set_defaults(func=cmd_validate)

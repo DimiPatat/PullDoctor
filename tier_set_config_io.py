@@ -6,16 +6,14 @@ manage_tier_sets.py. Self-contained. Mirrors gear_config_io.py's
 structure (backup-before-write, JSON error diagnostics with a
 trailing-comma-aware hint, validate/repair helpers).
 
-Unlike gear_requirements.generated.json (a single global profile),
-this file holds TWO independent lists:
-  - "pieces": one entry per tracked (class_name, slot, item_id).
-  - "track_breakpoints": the item-level floor for each of the five
-    upgrade tracks (Adventurer/Veteran/Champion/Hero/Myth). Shipped
-    with a verified SEED default in tier_set_data.py, but stored here
-    (and editable via manage_tier_sets.py) so a mid-season item-level
-    hotfix (which has already happened once this season) doesn't
-    require a code change -- just re-running
-    `manage_tier_sets.py set-breakpoint`.
+CHANGED: track_breakpoints entries now also persist max_item_level
+(see tier_set_schema.py's docstring for why this field was added --
+short version: without it, an item at certain "crossing" item levels
+between two tracks always got classified as the HIGHER track, which
+is the bug this fix addresses). Reading an OLDER saved file that only
+has min_item_level (no max_item_level key at all) still works fine --
+it's treated as an unbounded-above range, same as before this change,
+so nothing breaks for existing generated.json files.
 
 JSON shape:
 {
@@ -25,11 +23,11 @@ JSON shape:
     {"class_name": "Paladin", "slot": 2, "item_id": 123457, "notes": null}
   ],
   "track_breakpoints": [
-    {"min_item_level": 266, "track_letter": "A", "track_name": "Adventurer", "color_hex": "#ffffff"},
-    {"min_item_level": 279, "track_letter": "V", "track_name": "Veteran",    "color_hex": "#1eff00"},
-    {"min_item_level": 292, "track_letter": "C", "track_name": "Champion",  "color_hex": "#0070dd"},
-    {"min_item_level": 305, "track_letter": "H", "track_name": "Hero",      "color_hex": "#a335ee"},
-    {"min_item_level": 318, "track_letter": "M", "track_name": "Myth",     "color_hex": "#ff8000"}
+    {"min_item_level": 266, "max_item_level": 292, "track_letter": "A", "track_name": "Adventurer", "color_hex": "#ffffff"},
+    {"min_item_level": 279, "max_item_level": 305, "track_letter": "V", "track_name": "Veteran",    "color_hex": "#1eff00"},
+    {"min_item_level": 292, "max_item_level": 318, "track_letter": "C", "track_name": "Champion",  "color_hex": "#0070dd"},
+    {"min_item_level": 305, "max_item_level": 321, "track_letter": "H", "track_name": "Hero",      "color_hex": "#a335ee"},
+    {"min_item_level": 318, "max_item_level": null, "track_letter": "M", "track_name": "Myth",     "color_hex": "#ff8000"}
   ]
 }
 """
@@ -140,7 +138,13 @@ def load_generated_tier_set_pieces(path: str | Path = DEFAULT_CONFIG_PATH) -> li
 
 
 def load_generated_track_breakpoints(path: str | Path = DEFAULT_CONFIG_PATH) -> list[TierTrackBreakpoint]:
-    """Load custom track breakpoints, if any were saved. Missing file (or missing key) returns an empty list, letting the caller fall back to the verified SEED default in tier_set_data.py."""
+    """
+    Load custom track breakpoints, if any were saved. Missing file (or
+    missing key) returns an empty list, letting the caller fall back to
+    the verified SEED default in tier_set_data.py. max_item_level
+    defaults to None (unbounded above) if that key is absent from an
+    older saved entry -- see module docstring.
+    """
     config_path = Path(path)
     if not config_path.exists():
         return []
@@ -149,6 +153,7 @@ def load_generated_track_breakpoints(path: str | Path = DEFAULT_CONFIG_PATH) -> 
         TierTrackBreakpoint(
             min_item_level=float(item["min_item_level"]), track_letter=item["track_letter"],
             track_name=item["track_name"], color_hex=item["color_hex"],
+            max_item_level=(float(item["max_item_level"]) if item.get("max_item_level") is not None else None),
         )
         for item in raw.get("track_breakpoints", [])
     ]
@@ -160,8 +165,8 @@ def _piece_to_json(piece: TierSetPieceDefinition) -> dict:
 
 def _breakpoint_to_json(bp: TierTrackBreakpoint) -> dict:
     return {
-        "min_item_level": bp.min_item_level, "track_letter": bp.track_letter,
-        "track_name": bp.track_name, "color_hex": bp.color_hex,
+        "min_item_level": bp.min_item_level, "max_item_level": bp.max_item_level,
+        "track_letter": bp.track_letter, "track_name": bp.track_name, "color_hex": bp.color_hex,
     }
 
 
@@ -189,10 +194,7 @@ def save_tier_set_pieces(
     """
     Add/update tracked tier-set pieces. Keyed by (class_name, slot) --
     adding a new item_id for a class+slot that's already tracked
-    REPLACES the old one (a class only ever has ONE tier item per
-    slot per tier, so there's nothing sensible to merge/union here,
-    unlike gear_config_io.py's enchant_requirements list).
-    Makes a .bak backup before writing.
+    REPLACES the old one. Makes a .bak backup before writing.
     """
     piece_updates = piece_updates or []
     config_path = Path(path)
@@ -240,8 +242,7 @@ def save_track_breakpoints(
 ) -> Path:
     """
     REPLACE the entire track-breakpoint table with `breakpoints` (not a
-    merge -- the five tracks always come as a complete, ordered set, so
-    partial updates don't make sense the way per-slot piece updates do).
+    merge -- the five tracks always come as a complete, ordered set).
     """
     config_path = Path(path)
     existing = _read_existing(config_path)

@@ -4,58 +4,88 @@ Loads tracked tier-set pieces from tier_sets.generated.json at import
 time, exposing ready-to-use TRACKED_TIER_SET_PIECES and
 TRACK_BREAKPOINTS objects. If the generated file is currently broken,
 prints a warning and falls back to safe empty/seed defaults instead of
-crashing every script that imports it -- same pattern as
-gear_requirements_config.py / defensive_cooldown_data.py.
+crashing every script that imports it.
 
 ===========================================================================
-TRACK BREAKPOINTS -- verified 2026-09-24, current as of Patch 12.1
-"Midnight Season 2" (Curse of Ula'tek), live client build 12.1.0.69814
+BUGFIX -- 2026-09-25: top 2 ranks of a lower track were being shown as
+the NEXT track up (e.g. a fully-upgraded Heroic piece at ilvl 318 or
+321 was displayed as "Myth" instead of "Hero")
 ===========================================================================
-Sourced from a datamined, live-client-build table (updated 2026-09-16)
-cross-checked against two independent gearing guides published the same
-week. All three agree on the same breakpoints:
-  Adventurer starts at item level 266
-  Veteran    starts at item level 279
-  Champion   starts at item level 292
-  Hero       starts at item level 305
-  Myth       starts at item level 318 (climbs to 334 at 6/6, with a few
-             Very Rare / last-two-boss drops going as high as 344 --
-             still Myth track, just above the normal upgrade ceiling)
-These five tracks correspond directly to this raid's difficulty floor:
-LFR drops Veteran, Normal drops Champion, Heroic drops Hero, Mythic
-drops Myth -- there is no raid-dropped Adventurer-track gear, only
-world/leveling content.
+ROOT CAUSE (confirmed against two independent, dated sources -- one
+explicitly read from LIVE 12.1 client data on 2026-09-16): Blizzard's
+own upgrade system defines certain item levels as belonging to BOTH of
+two adjacent tracks AT ONCE, by design, since each track's top 2 ranks
+are deliberately set to the exact same item level as the next track's
+bottom 2 ranks (this is what makes upgrading feel continuous across
+raid tiers). The known "crossing" item levels for the current season
+are:
+    279 = Adventurer 5/6 = Veteran 1/6
+    282 = Adventurer 6/6 = Veteran 2/6
+    292 = Veteran 5/6    = Champion 1/6
+    295 = Veteran 6/6    = Champion 2/6
+    305 = Champion 5/6   = Hero 1/6
+    308 = Champion 6/6   = Hero 2/6
+    318 = Hero 5/6        = Myth 1/6
+    321 = Hero 6/6        = Myth 2/6
+The OLD track_letter_for_item_level() picked "the highest track whose
+floor is <= this item level" -- which, by construction, ALWAYS resolves
+this ambiguity in favor of the HIGHER track. That's precisely why the
+top two ranks of Hero (318, 321) were shown as Myth.
 
-IMPORTANT CAVEAT: Blizzard has ALREADY hotfixed Season 2 item levels
-upward once this season (a +7 item level bump shortly after launch,
-per patch notes). If that happens again, these seed numbers will be
-stale. Rather than requiring a code change, TRACK_BREAKPOINTS checks
-tier_sets.generated.json FIRST and only falls back to this seed table
-if no custom breakpoints have been saved -- run
-`manage_tier_sets.py set-breakpoint` to override without touching this
-file.
+THE FIX: TierTrackBreakpoint now carries BOTH a floor (min_item_level)
+AND a ceiling (max_item_level) per track -- each track's own genuine
+6/6 rank value (or, for Myth specifically, no ceiling at all, since it
+has no higher track to be confused with, and its own special "Very
+Rare" reward ranks go well above its normal 334 cap). Given an item
+level, track_letter_for_item_level() now finds every track whose
+[floor, ceiling] range contains it -- which will be exactly one track
+for the vast majority of item levels, but exactly TWO tracks at the 8
+known crossing points above -- and returns the LOWER (more
+conservative) of the matches when there's more than one. This directly
+fixes the reported symptom: a Heroic-track piece upgraded all the way
+to 318 or 321 now correctly shows as Hero, not Myth.
 
-Track colors below are the exact color/letter pairing requested when
-this feature was scoped (which also happens to match WoW's familiar
-item-rarity color scheme: white/green/blue/purple/orange).
+HONEST LIMITATION, still true after this fix: item level ALONE can
+never be a perfectly certain signal at those 8 crossing points -- the
+SAME ilvl genuinely IS both things simultaneously in Blizzard's own
+data model. The only way to fully disambiguate would be reading the
+item's actual bonus IDs (which Warcraft Logs' raw COMBATANT_INFO gear
+array does capture, per WCL's own event schema), which encode the
+item's true track+rank independent of its current item level -- but
+this project doesn't have a verified, current-season bonus-ID-to-track
+mapping table to build that on top of (and, per this project's
+existing "no item database" philosophy, fabricating one risks being
+actively wrong rather than just approximate). This fix instead makes a
+DELIBERATE, DOCUMENTED CHOICE to default to the lower/more
+conservative track whenever ambiguous, since for a raid-gearing check
+specifically, under-calling something as "still Hero" is far less
+confusing than over-calling a well-upgraded Heroic piece as "Mythic".
 
-TIER SET NAMES BY CLASS (informational only, NOT used for detection --
-this app has no item database, see tier_set_schema.py's docstring) --
-verified against Blizzard's official Patch 12.1 PTR tier-set preview
-for The Venomous Abyss raid:
-    Death Knight  - Baleful Grave-Knight's Crucible
-    Demon Hunter  - Abyssal Doomhound's Pursuit
-    Druid         - Bark of the Enigmatic Dreamwatcher
-    Evoker        - Echo of Calamity
-    Hunter        - Skulking Viper's Ambush
-    Mage          - Primal Leywarden's Attire
-    Monk          - Guile of the Monkey King
-    Paladin       - Radiance of the Consecrated Flame
-    Priest        - Cosmic Penitent's Raiment
-    Rogue         - Chosen Bloodslayer's Hexweave
-    Shaman        - Ophidian Oracle's Prophecy
-    Warlock       - Damned Necrolyte's Shattered Restraints
-    Warrior       - Jade Warlord's Dominion
+===========================================================================
+TRACK BREAKPOINTS -- verified 2026-09-25, current as of Patch 12.1
+"Midnight Season 2" (Curse of Ula'tek)
+===========================================================================
+Full per-rank item levels (all 5 tracks x 6 ranks each) cross-checked
+against TWO independent, agreeing sources -- one explicitly sourced
+from a live 12.1.0.69814 client build dated 2026-09-16, the other
+dated 2026-08-09 -- both giving IDENTICAL numbers:
+    Adventurer: 266, 269, 272, 276, 279, 282
+    Veteran:    279, 282, 285, 289, 292, 295
+    Champion:   292, 295, 298, 302, 305, 308
+    Hero:       305, 308, 311, 315, 318, 321
+    Myth:       318, 321, 324, 328, 331, 334 (+ special reward ranks
+                338, 341, 344 -- "Myth 7/8/9 equivalent", used by
+                Very Rare drops and the raid's last 2 Mythic bosses)
+A third source (dated 2026-08-12, one month earlier) shows slightly
+different numbers (Champion 6/6=309 instead of 308, etc.) -- likely
+reflecting an earlier point before a documented mid-season item-level
+hotfix. The two AGREEING, more-recently-dated sources are used here.
+
+min_item_level for each track = that track's own 1/6 rank value.
+max_item_level for each track = that track's own 6/6 rank value,
+EXCEPT Myth, which has no ceiling (None) to correctly capture its
+above-cap special reward ranks (338/341/344) without needing to name
+every one of them individually.
 """
 from __future__ import annotations
 from tier_set_config_io import (
@@ -66,11 +96,11 @@ from tier_set_config_io import (
 from tier_set_schema import TierSetPieceDefinition, TierTrackBreakpoint
 
 SEED_TRACK_BREAKPOINTS: list[TierTrackBreakpoint] = [
-    TierTrackBreakpoint(min_item_level=266, track_letter="A", track_name="Adventurer", color_hex="#ffffff"),
-    TierTrackBreakpoint(min_item_level=279, track_letter="V", track_name="Veteran", color_hex="#1eff00"),
-    TierTrackBreakpoint(min_item_level=292, track_letter="C", track_name="Champion", color_hex="#0070dd"),
-    TierTrackBreakpoint(min_item_level=305, track_letter="H", track_name="Hero", color_hex="#a335ee"),
-    TierTrackBreakpoint(min_item_level=318, track_letter="M", track_name="Myth", color_hex="#ff8000"),
+    TierTrackBreakpoint(min_item_level=266, max_item_level=282, track_letter="A", track_name="Adventurer", color_hex="#ffffff"),
+    TierTrackBreakpoint(min_item_level=279, max_item_level=295, track_letter="V", track_name="Veteran", color_hex="#1eff00"),
+    TierTrackBreakpoint(min_item_level=292, max_item_level=308, track_letter="C", track_name="Champion", color_hex="#0070dd"),
+    TierTrackBreakpoint(min_item_level=305, max_item_level=321, track_letter="H", track_name="Hero", color_hex="#a335ee"),
+    TierTrackBreakpoint(min_item_level=318, max_item_level=None, track_letter="M", track_name="Myth", color_hex="#ff8000"),
 ]
 
 # Informational only -- see module docstring. Not used by the analyzer,
@@ -136,15 +166,30 @@ TRACK_BREAKPOINTS: list[TierTrackBreakpoint] = (
 def track_letter_for_item_level(item_level: float | None) -> str | None:
     """
     Return the track letter (e.g. "M") for a given item level, per
-    TRACK_BREAKPOINTS, or None if item_level is None or below every
-    configured breakpoint (e.g. leveling/starter gear below Adventurer).
+    TRACK_BREAKPOINTS, or None if item_level is None or doesn't fall
+    within ANY configured track's [min, max] range (e.g. leveling/
+    starter gear below every track's floor).
+
+    FIXED: previously returned the HIGHEST track whose floor was <=
+    item_level, with no upper bound check at all -- which meant a
+    Heroic-track item upgraded to its own top 2 ranks (which share an
+    item level with the bottom 2 ranks of Myth) was always misreported
+    as Myth. Now finds every track whose [min_item_level,
+    max_item_level] range actually CONTAINS item_level -- there will
+    be exactly one match for the vast majority of item levels, but
+    exactly two matches at the known "crossing" item levels (279, 282,
+    292, 295, 305, 308, 318, 321) -- and returns the LOWER (more
+    conservative) match when there's more than one, since item level
+    alone cannot certainly disambiguate those specific values (see
+    module docstring for the full explanation).
     """
     if item_level is None:
         return None
-    matching = [bp for bp in TRACK_BREAKPOINTS if item_level >= bp.min_item_level]
+    matching = [bp for bp in TRACK_BREAKPOINTS if bp.contains(item_level)]
     if not matching:
         return None
-    return max(matching, key=lambda bp: bp.min_item_level).track_letter
+    lowest_match = min(matching, key=lambda bp: bp.min_item_level)
+    return lowest_match.track_letter
 
 
 def track_color_for_letter(track_letter: str) -> str:

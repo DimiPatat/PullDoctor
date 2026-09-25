@@ -13,13 +13,25 @@ this app has no item database. tier_set_data.py does NOT ship with a
 hardcoded item_id catalog -- it can't verify one, the same way it
 can't verify enchant/gem IDs. Instead, TRACKED_TIER_SET_PIECES starts
 EMPTY and gets populated by YOU, via tier_set_explorer.py's heuristic
-"candidate" detection (multiple same-class players sharing an
-identical item_id in a tier slot) + manage_tier_sets.py's add/remove
-CLI -- exactly the same discover-then-confirm workflow already used
-for defensive cooldowns and gear compliance.
+"candidate" detection + manage_tier_sets.py's add/remove CLI.
+
+CHANGED: TierTrackBreakpoint now has a max_item_level field, in
+addition to min_item_level. See tier_set_data.py's module docstring
+for exactly why this was needed -- in short, Blizzard's own upgrade
+system defines certain item levels (e.g. 318, 321) as belonging to
+BOTH of two adjacent tracks at once (the top 2 ranks of the lower
+track are numerically identical to the bottom 2 ranks of the next
+track up), so classifying by "floor only" always resolves that
+ambiguity in favor of the HIGHER track. Tracking each track's own
+ceiling lets the classifier instead default to the LOWER (more
+conservative) track whenever an item level is genuinely ambiguous.
+max_item_level defaults to None (treated as "no ceiling", i.e.
+unbounded above) so older saved JSON files without this field, or a
+manually-added breakpoint that only specifies a floor, still load
+without crashing -- see tier_set_config_io.py.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # The five armor slots that make up a tier set, and their Blizzard
 # inventory slot indices (same indices gear_analyzer.py's
@@ -64,14 +76,26 @@ class TierSetPieceDefinition:
 @dataclass
 class TierTrackBreakpoint:
     """
-    One item-track's item-level floor: an item at or above
-    min_item_level (and below the NEXT breakpoint's min_item_level) is
-    considered to be on this track. track_letter is a single uppercase
-    character used in the 5-char per-player track string (e.g. "M" for
-    Myth); color_hex is the color that letter renders in, in the HTML
-    report.
+    One item-track's item-level RANGE: an item is considered to be on
+    this track if min_item_level <= item_level <= max_item_level.
+    track_letter is a single uppercase character used in the 5-char
+    per-player track string (e.g. "M" for Myth); color_hex is the
+    color that letter renders in, in the HTML report.
+
+    max_item_level=None means "no ceiling" (unbounded above) -- used
+    for the TOP track (Myth), whose own highest special reward ranks
+    (e.g. the "Very Rare"/last-2-boss 344 equivalent) sit well above
+    its normal 6/6 cap and have no higher track to be confused with.
     """
     min_item_level: float
     track_letter: str
     track_name: str
     color_hex: str
+    max_item_level: float | None = None
+
+    def contains(self, item_level: float) -> bool:
+        if item_level < self.min_item_level:
+            return False
+        if self.max_item_level is not None and item_level > self.max_item_level:
+            return False
+        return True
