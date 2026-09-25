@@ -8,71 +8,67 @@ bars for Damage Done/Healing/Damage Taken/Damage Prevented, a
 difficulty badge on every pull, and consistent right-aligned/comma-
 formatted numeric columns everywhere.
 
-CHANGED (this update) -- every pull's summary line now shows "Pulled
-by <Player>" alongside the existing difficulty badge / kill-wipe badge
-/ duration, using _find_puller_name(): the first PLAYER-SOURCED Casts
-or DamageDone event in the fight, chronologically (events are already
-sorted by timestamp upstream). Pet-sourced actions (e.g. a Hunter's pet
-auto-attacking before its owner does anything) are folded back to the
-OWNING PLAYER via roster.resolve_to_player(), consistent with how every
-other analyzer in this project treats pet activity -- so "Pulled by"
-always names an actual raider, never a pet/guardian. If no player-
-sourced Casts/DamageDone event exists at all (e.g. an unusually short
-or gap-filled log), the note is omitted entirely rather than showing a
-misleading blank or "Unknown".
+CHANGED (this update) -- two changes to how per-pull sections behave:
+
+  1. ALL sections now start COLLAPSED by default -- Deaths, Healing,
+     and Damage Done (DPS) previously auto-expanded (via
+     DEFAULT_OPEN_SECTIONS); that set is now empty, so every section
+     under a pull requires an explicit click to expand, matching the
+     fully-collapsed appearance requested. The mini-scoreboard and
+     timeline strip are UNCHANGED -- they were never collapsible
+     <details> sections to begin with, so "Result/Duration/Top DPS/
+     Top HPS/Deaths" still shows immediately without any click.
+
+  2. Section order within a pull is now:
+        Damage Done (DPS) -> Healing -> Deaths -> Avoidable Damage ->
+        Damage Taken -> Biggest Hits -> Defensive Cooldown Usage ->
+        Damage Prevented by Defensives -> Raid Cooldown Usage ->
+        Gear Check -> Consumables
+     (previously: Deaths -> Avoidable Damage -> Healing -> Damage Done
+     (DPS) -> Damage Taken -> Biggest Hits -> Raid Cooldown Usage ->
+     Defensive Cooldown Usage -> Damage Prevented by Defensives ->
+     Consumables -> Gear Check). This is purely a re-ordering of
+     _render_pull_sections()'s existing per-section blocks -- no
+     section's own internal rendering logic changed.
+
+CHANGED (prior update) -- every pull's summary line shows "Pulled by
+<Player>" via _find_puller_name(): the first PLAYER-SOURCED Casts or
+DamageDone event in the fight, chronologically. Pet-sourced actions
+fold back to the OWNING PLAYER via roster.resolve_to_player().
+Omitted entirely if no such event exists.
 
 CHANGED (prior update) -- Gear Check's "Lowest Quality" column is
-REMOVED (no longer useful now that tier-set tracking exists) and
-replaced with two new columns, joined against tier_set_reports by
-player_id:
-  - "Tier Pieces" -- X/5, how many of the player's 5 tier slots
-    (Head/Shoulder/Chest/Gloves/Legs) are a tracked tier-set item.
-  - "Tier Set" -- the 5-character track string (e.g. "MMHCC"), with
-    EACH LETTER individually color-coded to its upgrade track: Myth
-    orange, Hero purple, Champion blue, Veteran green, Adventurer
-    white, and a dim gray underscore for any slot that isn't a tracked
-    tier piece (e.g. "MM_H_" = missing tier Chest and Legs). See
-    tier_set_analyzer.py for the exact letter legend and slot order.
-  A player with no tier_set_reports entry at all (e.g. the analyzer
-  wasn't run this pass) shows "n/a" / a plain dash string rather than
-  a misleading 0/5.
+REMOVED and replaced with "Tier Pieces" (X/5) and "Tier Set" (5-char
+color-coded track string), joined against tier_set_reports by
+player_id. See tier_set_analyzer.py for the letter legend/slot order.
 
 CHANGED (prior update) -- added a third inline-SVG bar chart, "Raid HPS
-by Pull", to the per-boss TREND VIEW (feature 4), alongside the
-existing "Raid DPS by Pull" and "Deaths by Pull" charts. Raid HPS is
-computed the SAME WAY the sticky mini-scoreboard's "Top HPS" stat and
-the Healing section already restrict themselves -- summed effective
-healing from ONLY tank/healer-role players (when role data is
-available; falls back to every healer_summaries entry otherwise).
+by Pull", to the per-boss TREND VIEW, alongside "Raid DPS by Pull" and
+"Deaths by Pull". Raid HPS restricts to tank/healer-role players (same
+filter the mini-scoreboard's "Top HPS" stat and the Healing section
+already apply).
 
-CHANGED (prior update) -- "Defensive Cooldown Usage" gets the same
-meter-bar OVERVIEW treatment as Damage Done/Healing/Damage Taken,
-instead of being a single flat per-ability table (ranked by total
-casts per player, with an average-efficiency pill; per-player detail
-blocks underneath still show the full per-ability breakdown).
+CHANGED (prior update) -- "Defensive Cooldown Usage" uses a meter-bar
+OVERVIEW (ranked by total casts per player, average-efficiency pill)
+with per-player detail blocks underneath showing the full per-ability
+breakdown. Raid Cooldown Usage remains a flat per-ability table.
 
 CHANGED (prior update) -- added a DIFFICULTY filter (LFR / Normal /
-Heroic / Mythic) alongside the existing Role/Boss/Player filters,
-operating at the per-pull level.
+Heroic / Mythic) alongside Role/Boss/Player, operating at the per-pull
+level (a boss can be pulled at more than one difficulty in one night).
 
-CHANGED (prior update) -- four report-polish features: TIMELINE STRIP
-(per-pull three-lane Deaths/Raid CDs/Defensive CDs strip), STICKY
-MINI-SCOREBOARD (Result/Duration/Top DPS/Top HPS/Deaths), COLOR-CODED
-EFFICIENCY pills, and TREND VIEW ACROSS PULLS (inline-SVG bar charts
-per boss with 2+ pulls).
-
-CHANGED (prior update) -- every fight-relative timestamp renders as
-M:SS via time_format.format_timestamp(). "Damage Prevented by
-Defensives" uses the meter-bar treatment with a distinct hatched/dimmed
-"no estimate possible" bar style for immunity-only players.
+CHANGED (prior update) -- TIMELINE STRIP (per-pull three-lane Deaths/
+Raid CDs/Defensive CDs strip), STICKY MINI-SCOREBOARD, COLOR-CODED
+EFFICIENCY pills, M:SS timestamps throughout, and the meter-bar
+treatment (incl. hatched "no estimate possible" style) for Damage
+Prevented by Defensives.
 
 Pure rendering: takes a list of already-built FightReportData and
 produces HTML. Does not call any analyzer and does not touch the
-network. _find_puller_name() is the one exception to "does not call
-any analyzer" -- it's a lightweight, self-contained lookup over data
-already present on parsed_fight (events + actors), not a separate
-analyzer module, matching how _role_of()/_class_of() already read
-parsed_fight directly elsewhere in this file.
+network. _find_puller_name() is the one lightweight exception -- a
+direct read over parsed_fight.events/.actors, not a separate analyzer
+module, matching how _role_of()/_class_of() already read parsed_fight
+directly elsewhere in this file.
 """
 from __future__ import annotations
 import html as html_module
@@ -374,7 +370,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 """
 ROLE_LABELS = {"tank": "Tank", "healer": "Healer", "melee": "Melee", "ranged": "Ranged"}
-DEFAULT_OPEN_SECTIONS = {"Deaths", "Healing", "Damage Done (DPS)"}
+
+# CHANGED: previously {"Deaths", "Healing", "Damage Done (DPS)"} --
+# ALL per-pull sections now start collapsed, with zero exceptions.
+# The mini-scoreboard/timeline strip are unaffected since they were
+# never <details> sections to begin with.
+DEFAULT_OPEN_SECTIONS: set[str] = set()
 
 
 def _esc(value) -> str:
@@ -400,15 +401,9 @@ def _find_puller_name(parsed_fight) -> str | None:
     Find who "pulled" the encounter: the first PLAYER-sourced Casts or
     DamageDone event in the fight, chronologically (parsed_fight.events
     is already sorted by timestamp upstream in log_parser.py). A pet/
-    guardian-sourced action (e.g. a Hunter's pet auto-attacking before
-    its owner does anything) resolves back to the OWNING PLAYER via
-    roster.resolve_to_player() -- the same pet-to-owner folding every
-    other analyzer in this project already applies -- so this always
-    names an actual raider, never a pet.
-
-    Returns None if no such event exists at all (e.g. an unusually
-    short or gap-filled log) -- the caller omits the "Pulled by" note
-    entirely in that case, rather than showing a blank or "Unknown".
+    guardian-sourced action resolves back to the OWNING PLAYER via
+    roster.resolve_to_player(). Returns None if no such event exists at
+    all -- the caller omits the "Pulled by" note entirely in that case.
     """
     for event in parsed_fight.events:
         if event.data_type not in _PULL_STARTING_DATA_TYPES:
@@ -831,40 +826,36 @@ def _trend_view_html(pulls: list[FightReportData]) -> str:
 
 
 def _render_pull_sections(data: FightReportData) -> str:
+    """
+    CHANGED: section order is now Damage Done (DPS) -> Healing ->
+    Deaths -> Avoidable Damage -> Damage Taken -> Biggest Hits ->
+    Defensive Cooldown Usage -> Damage Prevented by Defensives ->
+    Raid Cooldown Usage -> Gear Check -> Consumables. Every section's
+    OWN internal rendering logic is unchanged -- only the order these
+    blocks are appended in has moved.
+    """
     duration_ms = data.parsed_fight.fight.duration_ms
     blocks: list[str] = []
 
     blocks.append(_mini_scoreboard_html(data))
     blocks.append(_timeline_strip_html(data))
 
-    # 1. Deaths -- open by default.
-    if data.death_reports:
-        headers = ["Time", "Victim", "Killed By", "Dmg (window)", "Heal (window)"]
-        numeric_indices = _numeric_indices(headers)
+    # 1. Damage Done (DPS) -- METER bars.
+    if data.damage_done_summaries:
+        headers = ["Player", "DPS", "Total"]
+        numeric_indices = _numeric_indices(headers[1:])
+        max_value = data.damage_done_summaries[0].total_damage_done
         rows = [
-            _row(r.victim_id, r.victim_name, data, [
-                format_timestamp(r.time_into_fight_ms), r.victim_name, r.killing_ability_name,
-                f"{r.total_damage_taken_in_window:,}", f"{r.total_effective_healing_in_window:,}",
+            _meter_row(s.player_id, s.player_name, data, s.total_damage_done, max_value, [
+                f"{s.dps(duration_ms):,.0f}", f"{s.total_damage_done:,}",
             ], numeric_indices)
-            for r in data.death_reports
+            for s in data.damage_done_summaries
         ]
-        blocks.append(_section("Deaths", _table(headers, rows, "No deaths.")))
-    # 2. Avoidable Damage.
-    if data.avoidable_config is not None:
-        headers = ["Player", "Total Hits", "Breakdown"]
-        numeric_indices = _numeric_indices(headers)
-        hit_reports = [r for r in data.avoidable_reports if r.total_avoidable_hits > 0]
-        rows = [
-            _row(r.player_id, r.player_name, data, [
-                r.player_name, str(r.total_avoidable_hits),
-                ", ".join(f"{n} x{c}" for n, c in r.hits_by_mechanic.items() if c > 0),
-            ], numeric_indices)
-            for r in hit_reports
-        ]
-        blocks.append(_section("Avoidable Damage", _table(headers, rows, "No avoidable hits taken. Clean pull!")))
-    # 3. Healing -- open by default; restricted to tank/healer rows
-    # whenever role data is available; METER bars, scaled to the top
-    # ROW WITHIN THIS (already tank/healer-filtered) LIST.
+        blocks.append(_section("Damage Done (DPS)", _table(headers, rows, "No damage-done data.")))
+
+    # 2. Healing -- restricted to tank/healer rows whenever role data
+    # is available; METER bars, scaled to the top ROW WITHIN THIS
+    # (already tank/healer-filtered) LIST.
     if data.healer_summaries:
         headers = ["Healer", "HPS", "Effective", "Overheal", "Overheal %"]
         numeric_indices = _numeric_indices(headers[1:])
@@ -883,19 +874,35 @@ def _render_pull_sections(data: FightReportData) -> str:
         ]
         empty_message = "No healing recorded from healers/tanks." if has_role_data else "No healing recorded."
         blocks.append(_section("Healing", _table(headers, rows, empty_message)))
-    # 4. Damage Done (DPS) -- open by default; METER bars.
-    if data.damage_done_summaries:
-        headers = ["Player", "DPS", "Total"]
-        numeric_indices = _numeric_indices(headers[1:])
-        max_value = data.damage_done_summaries[0].total_damage_done
+
+    # 3. Deaths.
+    if data.death_reports:
+        headers = ["Time", "Victim", "Killed By", "Dmg (window)", "Heal (window)"]
+        numeric_indices = _numeric_indices(headers)
         rows = [
-            _meter_row(s.player_id, s.player_name, data, s.total_damage_done, max_value, [
-                f"{s.dps(duration_ms):,.0f}", f"{s.total_damage_done:,}",
+            _row(r.victim_id, r.victim_name, data, [
+                format_timestamp(r.time_into_fight_ms), r.victim_name, r.killing_ability_name,
+                f"{r.total_damage_taken_in_window:,}", f"{r.total_effective_healing_in_window:,}",
             ], numeric_indices)
-            for s in data.damage_done_summaries
+            for r in data.death_reports
         ]
-        blocks.append(_section("Damage Done (DPS)", _table(headers, rows, "No damage-done data.")))
-    # 5. Damage Taken -- collapsed by default; METER bars.
+        blocks.append(_section("Deaths", _table(headers, rows, "No deaths.")))
+
+    # 4. Avoidable Damage.
+    if data.avoidable_config is not None:
+        headers = ["Player", "Total Hits", "Breakdown"]
+        numeric_indices = _numeric_indices(headers)
+        hit_reports = [r for r in data.avoidable_reports if r.total_avoidable_hits > 0]
+        rows = [
+            _row(r.player_id, r.player_name, data, [
+                r.player_name, str(r.total_avoidable_hits),
+                ", ".join(f"{n} x{c}" for n, c in r.hits_by_mechanic.items() if c > 0),
+            ], numeric_indices)
+            for r in hit_reports
+        ]
+        blocks.append(_section("Avoidable Damage", _table(headers, rows, "No avoidable hits taken. Clean pull!")))
+
+    # 5. Damage Taken -- METER bars.
     if data.damage_taken_summaries:
         headers = ["Player", "DTPS", "Total"]
         numeric_indices = _numeric_indices(headers[1:])
@@ -907,7 +914,8 @@ def _render_pull_sections(data: FightReportData) -> str:
             for s in data.damage_taken_summaries
         ]
         blocks.append(_section("Damage Taken", _table(headers, rows, "No damage-taken data.")))
-    # 6. Biggest Hits -- collapsed by default.
+
+    # 6. Biggest Hits.
     if data.biggest_hits:
         headers = ["Amount", "Ability", "Target"]
         numeric_indices = _numeric_indices(headers)
@@ -918,17 +926,10 @@ def _render_pull_sections(data: FightReportData) -> str:
             for hit in data.biggest_hits
         ]
         blocks.append(_section("Biggest Hits", _table(headers, rows, "No hits recorded.")))
-    # 7. Raid Cooldown Usage -- collapsed by default. UNCHANGED: still a
-    # single flat per-ability table.
-    if data.cooldown_usages:
-        headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
-        blocks.append(_section("Raid Cooldown Usage", _table(
-            headers, _cooldown_usage_rows(data.cooldown_usages, data, duration_ms),
-            "No tracked raid cooldowns used.",
-        )))
-    # 8. Defensive Cooldown Usage -- collapsed by default. OVERVIEW uses
-    # meter bars, ranked by total casts summed per player. A per-player
-    # detail block underneath still shows the full per-ability breakdown.
+
+    # 7. Defensive Cooldown Usage -- OVERVIEW uses meter bars, ranked by
+    # total casts summed per player. A per-player detail block
+    # underneath still shows the full per-ability breakdown.
     if data.defensive_cooldown_usages:
         overview_headers = ["Player", "Total Casts", "Avg Efficiency"]
         overview_numeric_indices = _numeric_indices(overview_headers[1:])
@@ -945,7 +946,8 @@ def _render_pull_sections(data: FightReportData) -> str:
         overview_table = _table(overview_headers, overview_rows, "No tracked defensive cooldowns used.")
         detail_blocks = _cooldown_usage_detail_blocks(data.defensive_cooldown_usages, data, duration_ms)
         blocks.append(_section("Defensive Cooldown Usage", overview_table + "".join(detail_blocks)))
-    # 9. Damage Prevented by Defensives -- collapsed by default.
+
+    # 8. Damage Prevented by Defensives.
     if data.defensive_damage_prevention:
         overview_headers = ["Player", "Prevented", "Dmg Taken (windows)", "Windows"]
         overview_numeric_indices = _numeric_indices(overview_headers[1:])
@@ -998,7 +1000,45 @@ def _render_pull_sections(data: FightReportData) -> str:
                 + "</div>"
             )
         blocks.append(_section("Damage Prevented by Defensives", overview_table + "".join(detail_blocks)))
-    # 10. Consumables -- collapsed by default.
+
+    # 9. Raid Cooldown Usage -- UNCHANGED: still a single flat
+    # per-ability table.
+    if data.cooldown_usages:
+        headers = ["Player", "Ability", "Casts/Max", "Efficiency"]
+        blocks.append(_section("Raid Cooldown Usage", _table(
+            headers, _cooldown_usage_rows(data.cooldown_usages, data, duration_ms),
+            "No tracked raid cooldowns used.",
+        )))
+
+    # 10. Gear Check -- "Lowest Quality" REMOVED; replaced with "Tier
+    # Pieces" (X/5) and "Tier Set" (colored track string), joined
+    # against tier_set_reports by player_id.
+    if data.gear_reports:
+        headers = ["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"]
+        numeric_indices = _numeric_indices(headers)
+        tier_by_player = {t.player_id: t for t in data.tier_set_reports}
+        rows = []
+        for r in data.gear_reports:
+            tier = tier_by_player.get(r.player_id)
+            if tier is None or not tier.has_data:
+                tier_pieces_cell = "n/a"
+                tier_set_html = _tier_set_string_html(MISSING_TIER_PIECE_CHAR * TOTAL_TIER_SLOTS)
+            else:
+                tier_pieces_cell = f"{tier.pieces_worn}/{TOTAL_TIER_SLOTS}"
+                tier_set_html = _tier_set_string_html(tier.track_string)
+
+            if not r.has_data:
+                rows.append(_row(r.player_id, r.player_name, data, [
+                    r.player_name, "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
+                ], numeric_indices, raw_indices=frozenset({3})))
+                continue
+            rows.append(_row(r.player_id, r.player_name, data, [
+                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
+                str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
+            ], numeric_indices, raw_indices=frozenset({3})))
+        blocks.append(_section("Gear Check", _table(headers, rows, "No gear data.")))
+
+    # 11. Consumables.
     if data.consumable_results:
         headers = ["Player", "# Missing", "Missing"]
         numeric_indices = _numeric_indices(headers)
@@ -1024,33 +1064,7 @@ def _render_pull_sections(data: FightReportData) -> str:
                 vantus_line = "Vantus Rune: everyone who should have it, has it."
             consumables_html += f'<p class="empty-note">{_esc(vantus_line)}</p>'
         blocks.append(_section("Consumables", consumables_html))
-    # 11. Gear Check -- collapsed by default. "Lowest Quality" REMOVED;
-    # replaced with "Tier Pieces" (X/5) and "Tier Set" (colored track
-    # string), joined against tier_set_reports by player_id.
-    if data.gear_reports:
-        headers = ["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"]
-        numeric_indices = _numeric_indices(headers)
-        tier_by_player = {t.player_id: t for t in data.tier_set_reports}
-        rows = []
-        for r in data.gear_reports:
-            tier = tier_by_player.get(r.player_id)
-            if tier is None or not tier.has_data:
-                tier_pieces_cell = "n/a"
-                tier_set_html = _tier_set_string_html(MISSING_TIER_PIECE_CHAR * TOTAL_TIER_SLOTS)
-            else:
-                tier_pieces_cell = f"{tier.pieces_worn}/{TOTAL_TIER_SLOTS}"
-                tier_set_html = _tier_set_string_html(tier.track_string)
 
-            if not r.has_data:
-                rows.append(_row(r.player_id, r.player_name, data, [
-                    r.player_name, "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
-                ], numeric_indices, raw_indices=frozenset({3})))
-                continue
-            rows.append(_row(r.player_id, r.player_name, data, [
-                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
-                str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
-            ], numeric_indices, raw_indices=frozenset({3})))
-        blocks.append(_section("Gear Check", _table(headers, rows, "No gear data.")))
     return "".join(blocks)
 
 
