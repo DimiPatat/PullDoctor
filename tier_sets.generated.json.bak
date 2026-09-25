@@ -1,0 +1,390 @@
+{
+  "version": 1,
+  "pieces": [
+    {
+      "class_name": "DeathKnight",
+      "slot": 0,
+      "item_id": 271474,
+      "notes": null
+    },
+    {
+      "class_name": "DeathKnight",
+      "slot": 2,
+      "item_id": 271472,
+      "notes": null
+    },
+    {
+      "class_name": "DeathKnight",
+      "slot": 4,
+      "item_id": 271477,
+      "notes": null
+    },
+    {
+      "class_name": "DeathKnight",
+      "slot": 6,
+      "item_id": 271473,
+      "notes": null
+    },
+    {
+      "class_name": "DeathKnight",
+      "slot": 9,
+      "item_id": 271475,
+      "notes": null
+    },
+    {
+      "class_name": "DemonHunter",
+      "slot": 0,
+      "item_id": 271537,
+      "notes": null
+    },
+    {
+      "class_name": "DemonHunter",
+      "slot": 2,
+      "item_id": 271535,
+      "notes": null
+    },
+    {
+      "class_name": "DemonHunter",
+      "slot": 4,
+      "item_id": 271540,
+      "notes": null
+    },
+    {
+      "class_name": "DemonHunter",
+      "slot": 6,
+      "item_id": 271536,
+      "notes": null
+    },
+    {
+      "class_name": "DemonHunter",
+      "slot": 9,
+      "item_id": 271538,
+      "notes": null
+    },
+    {
+      "class_name": "Druid",
+      "slot": 0,
+      "item_id": 271528,
+      "notes": null
+    },
+    {
+      "class_name": "Druid",
+      "slot": 2,
+      "item_id": 271526,
+      "notes": null
+    },
+    {
+      "class_name": "Druid",
+      "slot": 4,
+      "item_id": 271531,
+      "notes": null
+    },
+    {
+      "class_name": "Druid",
+      "slot": 6,
+      "item_id": 271527,
+      "notes": null
+    },
+    {
+      "class_name": "Druid",
+      "slot": 9,
+      "item_id": 271529,
+      "notes": null
+    },
+    {
+      "class_name": "Evoker",
+      "slot": 0,
+      "item_id": 271501,
+      "notes": null
+    },
+    {
+      "class_name": "Evoker",
+      "slot": 2,
+      "item_id": 271499,
+      "notes": null
+    },
+    {
+      "class_name": "Evoker",
+      "slot": 4,
+      "item_id": 271504,
+      "notes": null
+    },
+    {
+      "class_name": "Evoker",
+      "slot": 6,
+      "item_id": 271500,
+      "notes": null
+    },
+    {
+      "class_name": "Evoker",
+      "slot": 9,
+      "item_id": 271502,
+      "notes": null
+    },
+    {
+      "class_name": "Hunter",
+      "slot": 0,
+      "item_id": 271492,
+      "notes": null
+    },
+    {
+      "class_name": "Hunter",
+      "slot": 2,
+      "item_id": 271490,
+      "notes": null
+    },
+    {
+      "class_name": "Hunter",
+      "slot": 4,
+      "item_id": 271495,
+      "notes": null
+    },
+    {
+      "class_name": "Hunter",
+      "slot": 6,
+      "item_id": 271491,
+      "notes": null
+    },
+    {
+      "class_name": "Hunter",
+      "slot": 9,
+      "item_id": 271493,
+      "notes": null
+    },
+    {
+      "class_name": "Mage",
+      "slot": 0,
+      "item_id": 271564,
+      "notes": null
+    },
+    {
+      "class_name": "Mage",
+      "slot": 2,
+      "item_id": 271562,
+      "notes": null
+    },
+    {
+      "class_name": "Mage",
+      "slot": 4,
+      "item_id": 271567,
+      "notes": null
+    },
+    {
+      "class_name": "Mage",
+      "slot": 6,
+      "item_id": 271563,
+      "notes": null
+    },
+    {
+      "class_name": "Mage",
+      "slot": 9,
+      "item_id": 271565,
+      "notes": null
+    },
+    {
+      "class_name": "Monk",
+      "slot": 0,
+      "item_id": 271519,
+      "notes": null
+    },
+    {
+      "class_name": "Monk",
+      "slot": 2,
+      "item_id": 271517,
+      "notes": null
+    },
+    {
+      "class_name": "Monk",
+      "slot": 4,
+      "item_id": 271522,
+      "notes": null
+    },
+    {
+      "class_name": "Monk",
+      "slot": 6,
+      "item_id": 271518,
+      "notes": null
+    },
+    {
+      "class_name": "Monk",
+      "slot": 9,
+      "item_id": 271520,
+      "notes": null
+    },
+    {
+      "class_name": "Paladin",
+      "slot": 0,
+      "item_id": 271465,
+      "notes": null
+    },
+    {
+      "class_name": "Paladin",
+      "slot": 2,
+      "item_id": 271463,
+      "notes": null
+    },
+    {
+      "class_name": "Paladin",
+      "slot": 4,
+      "item_id": 271468,
+      "notes": null
+    },
+    {
+      "class_name": "Paladin",
+      "slot": 6,
+      "item_id": 271464,
+      "notes": null
+    },
+    {
+      "class_name": "Paladin",
+      "slot": 9,
+      "item_id": 271466,
+      "notes": null
+    },
+    {
+      "class_name": "Priest",
+      "slot": 0,
+      "item_id": 271555,
+      "notes": null
+    },
+    {
+      "class_name": "Priest",
+      "slot": 2,
+      "item_id": 271553,
+      "notes": null
+    },
+    {
+      "class_name": "Priest",
+      "slot": 4,
+      "item_id": 271558,
+      "notes": null
+    },
+    {
+      "class_name": "Priest",
+      "slot": 6,
+      "item_id": 271554,
+      "notes": null
+    },
+    {
+      "class_name": "Priest",
+      "slot": 9,
+      "item_id": 271556,
+      "notes": null
+    },
+    {
+      "class_name": "Rogue",
+      "slot": 0,
+      "item_id": 271510,
+      "notes": null
+    },
+    {
+      "class_name": "Rogue",
+      "slot": 2,
+      "item_id": 271508,
+      "notes": null
+    },
+    {
+      "class_name": "Rogue",
+      "slot": 4,
+      "item_id": 271513,
+      "notes": null
+    },
+    {
+      "class_name": "Rogue",
+      "slot": 6,
+      "item_id": 271509,
+      "notes": null
+    },
+    {
+      "class_name": "Rogue",
+      "slot": 9,
+      "item_id": 271511,
+      "notes": null
+    },
+    {
+      "class_name": "Shaman",
+      "slot": 0,
+      "item_id": 271483,
+      "notes": null
+    },
+    {
+      "class_name": "Shaman",
+      "slot": 2,
+      "item_id": 271481,
+      "notes": null
+    },
+    {
+      "class_name": "Shaman",
+      "slot": 4,
+      "item_id": 271486,
+      "notes": null
+    },
+    {
+      "class_name": "Shaman",
+      "slot": 6,
+      "item_id": 271482,
+      "notes": null
+    },
+    {
+      "class_name": "Shaman",
+      "slot": 9,
+      "item_id": 271484,
+      "notes": null
+    },
+    {
+      "class_name": "Warlock",
+      "slot": 0,
+      "item_id": 271546,
+      "notes": null
+    },
+    {
+      "class_name": "Warlock",
+      "slot": 2,
+      "item_id": 271544,
+      "notes": null
+    },
+    {
+      "class_name": "Warlock",
+      "slot": 4,
+      "item_id": 271549,
+      "notes": null
+    },
+    {
+      "class_name": "Warlock",
+      "slot": 6,
+      "item_id": 271545,
+      "notes": null
+    },
+    {
+      "class_name": "Warlock",
+      "slot": 9,
+      "item_id": 271547,
+      "notes": null
+    },
+    {
+      "class_name": "Warrior",
+      "slot": 0,
+      "item_id": 271456,
+      "notes": null
+    },
+    {
+      "class_name": "Warrior",
+      "slot": 2,
+      "item_id": 271454,
+      "notes": null
+    },
+    {
+      "class_name": "Warrior",
+      "slot": 4,
+      "item_id": 271459,
+      "notes": null
+    },
+    {
+      "class_name": "Warrior",
+      "slot": 9,
+      "item_id": 271457,
+      "notes": null
+    }
+  ],
+  "track_breakpoints": []
+}

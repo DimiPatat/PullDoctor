@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "cooldowns": [
+    {
+      "ability_name": "Anti-Magic Zone",
+      "cooldown_seconds": 240.0,
+      "category": "healing_cd",
+      "class_name": "DeathKnight",
+      "notes": null
+    },
+    {
+      "ability_name": "Apotheosis",
+      "cooldown_seconds": 120.0,
+      "category": "healing_cd",
+      "class_name": "Priest",
+      "notes": null
+    },
+    {
+      "ability_name": "Ascendance",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Shaman",
+      "notes": null
+    },
+    {
+      "ability_name": "Aura Mastery",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Paladin",
+      "notes": null
+    },
+    {
+      "ability_name": "Celestial Conduit",
+      "cooldown_seconds": 90.0,
+      "category": "healing_cd",
+      "class_name": "Monk",
+      "notes": null
+    },
+    {
+      "ability_name": "Convoke the Spirits",
+      "cooldown_seconds": 120.0,
+      "category": "healing_cd",
+      "class_name": "Druid",
+      "notes": null
+    },
+    {
+      "ability_name": "Darkness",
+      "cooldown_seconds": 300.0,
+      "category": "healing_cd",
+      "class_name": "DemonHunter",
+      "notes": null
+    },
+    {
+      "ability_name": "Divine Hymn",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Priest",
+      "notes": null
+    },
+    {
+      "ability_name": "Invoke Yu'lon, the Jade Serpent",
+      "cooldown_seconds": 120.0,
+      "category": "healing_cd",
+      "class_name": "Monk",
+      "notes": null
+    },
+    {
+      "ability_name": "Rallying Cry",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Warrior",
+      "notes": null
+    },
+    {
+      "ability_name": "Revival",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Monk",
+      "notes": null
+    },
+    {
+      "ability_name": "Spirit Link Totem",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Shaman",
+      "notes": null
+    },
+    {
+      "ability_name": "Tranquility",
+      "cooldown_seconds": 180.0,
+      "category": "healing_cd",
+      "class_name": "Druid",
+      "notes": null
+    },
+    {
+      "ability_name": "Zephyr",
+      "cooldown_seconds": 120.0,
+      "category": "healing_cd",
+      "class_name": "Evoker",
+      "notes": null
+    }
+  ]
+}

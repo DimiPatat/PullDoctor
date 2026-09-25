@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "categories": {
+    "combat_potion": {
+      "mandatory": true
+    },
+    "health_potion": {
+      "mandatory": true
+    },
+    "healthstone": {
+      "mandatory": true
+    }
+  },
+  "consumables": [
+    {
+      "name": "Light's Potential",
+      "category": "combat_potion",
+      "ability_ids": [
+        1236616
+      ],
+      "notes": "primary stat",
+      "optional": false
+    },
+    {
+      "name": "Concentrated Silvermoon Health Potion",
+      "category": "health_potion",
+      "ability_ids": [
+        1295247
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Healthstone",
+      "category": "healthstone",
+      "ability_ids": [
+        6262
+      ],
+      "notes": null,
+      "optional": false
+    }
+  ]
+}

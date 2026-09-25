@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "categories": {
+    "flask": {
+      "mandatory": true
+    },
+    "health_potion": {
+      "mandatory": true
+    },
+    "combat_potion": {
+      "mandatory": true
+    },
+    "food": {
+      "mandatory": true
+    },
+    "oil": {
+      "mandatory": true
+    },
+    "healthstone": {
+      "mandatory": true
+    },
+    "augment_rune": {
+      "mandatory": false
+    },
+    "vantus_rune": {
+      "mandatory": false
+    }
+  },
+  "consumables": [
+    {
+      "name": "Void-Touched Augment Rune",
+      "category": "augment_rune",
+      "ability_ids": [],
+      "notes": "Optional by default -- flip to mandatory in the category settings if your raid requires it.",
+      "optional": true
+    },
+    {
+      "name": "Draught Of Rampant Abandon",
+      "category": "combat_potion",
+      "ability_ids": [
+        1230860
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Light's Potential",
+      "category": "combat_potion",
+      "ability_ids": [
+        1230869
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Liquid Luster",
+      "category": "combat_potion",
+      "ability_ids": [
+        1289745
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Potion Of Recklessness",
+      "category": "combat_potion",
+      "ability_ids": [
+        1230859
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Potion Of Zealotry",
+      "category": "combat_potion",
+      "ability_ids": [
+        1230863
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Flask of Thalassian Resistance",
+      "category": "flask",
+      "ability_ids": [
+        1230875
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Flask of the Blood Knights",
+      "category": "flask",
+      "ability_ids": [
+        1230877
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Flask of the Magisters",
+      "category": "flask",
+      "ability_ids": [
+        1230876
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Flask of the Shattered Sun",
+      "category": "flask",
+      "ability_ids": [
+        1230878
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Hearty Harandar Celebration",
+      "category": "food",
+      "ability_ids": [
+        266996
+      ],
+      "notes": "UNVERIFIED -- source link was item=266996 (the food ITEM), not a spell= link. Re-verify with explore_consumables.py against a real report.",
+      "optional": false
+    },
+    {
+      "name": "Amani Extract",
+      "category": "health_potion",
+      "ability_ids": [
+        1230864
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Concentrated Silvermoon Health Potion",
+      "category": "health_potion",
+      "ability_ids": [
+        1289744
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Silvermoon Health Potion",
+      "category": "health_potion",
+      "ability_ids": [
+        1230866
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Healthstone",
+      "category": "healthstone",
+      "ability_ids": [],
+      "notes": "Warlock-provided, not a crafted consumable -- always mandatory.",
+      "optional": false
+    },
+    {
+      "name": "Oil Of Dawn",
+      "category": "oil",
+      "ability_ids": [
+        1236492
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Smuggler's Enchanted Edge",
+      "category": "oil",
+      "ability_ids": [
+        1236493
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Thalassian Phoenix Oil",
+      "category": "oil",
+      "ability_ids": [
+        1236491
+      ],
+      "notes": null,
+      "optional": false
+    },
+    {
+      "name": "Vantus Rune: Tides",
+      "category": "vantus_rune",
+      "ability_ids": [],
+      "notes": "Once-per-week consumable -- checked separately via check_vantus_rune(), only flagged missing if at least half the roster already has it that week.",
+      "optional": false
+    }
+  ]
+}
