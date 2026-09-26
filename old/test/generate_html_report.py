@@ -1,15 +1,15 @@
 """
 generate_html_report.py
 
-Fetches every QUALIFYING fight in a report (see core.py's fight_filters
-section -- by default: real boss pulls only, encounterID != 0, at
-least 15 seconds long), runs role classification + every analyzer
-against each one, and writes a single collapsible/filterable HTML
-report covering the whole raid night.
+Fetches every QUALIFYING fight in a report (see fight_filters.py -- by
+default: real boss pulls only, encounterID != 0, at least 15 seconds
+long), runs role classification + every analyzer against each one, and
+writes a single collapsible/filterable HTML report covering the whole
+raid night.
 
-OUTPUT LOCATION AND NAMING (see reporting.py's Section 1): by default,
-the report is written to a "reports/" subfolder (created automatically
-if it doesn't exist yet), named:
+OUTPUT LOCATION AND NAMING (see report_filename.py): by default, the
+report is written to a "reports/" subfolder (created automatically if
+it doesn't exist yet), named:
 
     <SanitizedRaidName>-<DDMMYYYY><HHMM>.html
 
@@ -25,44 +25,11 @@ than silently overwriting the first one.
 
 The output ALWAYS ends in the literal ".html" extension -- both the
 default auto-named path AND any custom path you supply as the second
-argument are passed through reporting.ensure_html_extension(), so the
-file is never accidentally saved with no extension (which some file
-managers/Windows Explorer will display as a generic "File" type
+argument are passed through report_filename.ensure_html_extension(),
+so the file is never accidentally saved with no extension (which some
+file managers/Windows Explorer will display as a generic "File" type
 rather than recognizing it as an HTML document you can double-click
 to open in a browser).
-
-UPDATED FOR THE reporting.py MERGE, PLUS THREE ADDITIONAL FIXES CAUGHT
-DURING VERIFICATION: this file previously did `import html_report` and
-`import report_filename` at module scope -- both no longer exist as
-standalone files after html_report.py and report_filename.py were
-folded into reporting.py (alongside docs_index.py, report.py, and
-raid_scorecard.py). That much was flagged explicitly in reporting.py's
-own top-of-file NOTE.
-
-However, checking every OTHER original import against every merge
-completed so far (not just the two reporting.py called out) surfaced
-three MORE broken imports the note didn't mention, since they predate
-the reporting.py merge:
-  - `from wcl_api import WCLClient, WCLAPIError` -> wcl_api.py was
-    folded into wcl.py in an earlier merge pass. Fixed to
-    `from wcl import WCLClient, WCLAPIError`.
-  - `import config` (for config.get_credentials()) -> config.py was
-    ALSO folded into wcl.py (Section 1), in that SAME earlier merge.
-    Fixed to `from wcl import get_credentials`, called directly.
-  - `import log_parser` (for log_parser.parse_fight_bundle(...)) ->
-    log_parser.py was folded into core.py (Section 2). Fixed to
-    `from core import parse_fight_bundle`, called directly.
-  - `import player_roles as player_roles_module` (for
-    player_roles_module.parse_player_roles(...)) -> player_roles.py
-    was ALSO folded into core.py (Section 9), same file as above.
-    Fixed to `from core import parse_player_roles`, called directly.
-  - `from fight_filters import ...` -> fight_filters.py was folded
-    into core.py (Section 6). Fixed to `from core import
-    FightFilterCriteria, filter_fights, format_filter_summary`.
-
-Every function/argument signature is otherwise identical to the
-original call sites -- only the import path and (where a module alias
-was dropped) the call-site prefix changed.
 
 Usage:
     python generate_html_report.py <report_code>
@@ -72,16 +39,14 @@ Usage:
 """
 import argparse
 
-from wcl import WCLClient, WCLAPIError, get_credentials
-import reporting
+from wcl_api import WCLClient, WCLAPIError
+import config
+import log_parser
+import player_roles as player_roles_module
+import html_report
+import report_filename
 from main import EVENT_TYPES_NEEDED, run_all_analyzers
-from core import (
-    FightFilterCriteria,
-    filter_fights,
-    format_filter_summary,
-    parse_fight_bundle,
-    parse_player_roles,
-)
+from fight_filters import FightFilterCriteria, filter_fights, format_filter_summary
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -102,7 +67,7 @@ def main():
     args = build_argument_parser().parse_args()
 
     try:
-        client_id, client_secret = get_credentials()
+        client_id, client_secret = config.get_credentials()
     except RuntimeError as exc:
         print(exc)
         raise SystemExit(1)
@@ -121,10 +86,10 @@ def main():
     if args.output_path is not None:
         # Even a user-supplied path is guaranteed to end in .html --
         # never silently saved with no/wrong extension.
-        output_path = reporting.ensure_html_extension(args.output_path)
+        output_path = report_filename.ensure_html_extension(args.output_path)
     else:
-        reporting.ensure_reports_dir()
-        output_path = reporting.build_report_path(raid_name)
+        report_filename.ensure_reports_dir()
+        output_path = report_filename.build_report_path(raid_name)
     print(f"Output will be written to: {output_path}")
 
     all_raw_fights = raw_report["fights"]
@@ -139,6 +104,7 @@ def main():
         raise SystemExit(1)
 
     print(f"\nFetching and analyzing {len(raw_fights)} fight(s)... this may take a while.")
+
     raw_master_data = client.get_report_master_data(args.report_code)
 
     all_fight_data = []
@@ -151,12 +117,13 @@ def main():
         except WCLAPIError as exc:
             print(f"      skipped -- {exc}")
             continue
-        parsed = parse_fight_bundle(raw_fight, raw_master_data, raw_events_by_type)
+
+        parsed = log_parser.parse_fight_bundle(raw_fight, raw_master_data, raw_events_by_type)
         report_data = run_all_analyzers(parsed)
-        report_data.player_roles = parse_player_roles(raw_player_details)
+        report_data.player_roles = player_roles_module.parse_player_roles(raw_player_details)
         all_fight_data.append(report_data)
 
-    reporting.write_html_report(all_fight_data, output_path, title=raw_report["title"], report_code=args.report_code)
+    html_report.write_html_report(all_fight_data, output_path, title=raw_report["title"], report_code=args.report_code)
     print(f"\nHTML report written to {output_path}")
 
 

@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "encounters": [
+    {
+      "encounter_id": 3470,
+      "encounter_name": "Nek'zali the Soulcoiler",
+      "mechanics": [
+        {
+          "ability_name": "Swirling Spirit",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1300239
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Invoke",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1299722
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Anguished Echoes",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1294846
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Latent Cultist",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1288554
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        }
+      ]
+    },
+    {
+      "encounter_id": 3492,
+      "encounter_name": "Ula'tek",
+      "mechanics": [
+        {
+          "ability_name": "Caustic Waves",
+          "category": null,
+          "track_via": [
+            "damage",
+            "debuff"
+          ],
+          "notes": "https://www.mythictrap.com/venomous-abyss/ulatek/heroic?ability=ulatekCauWav"
+        },
+        {
+          "ability_name": "Warden's Protection",
+          "category": null,
+          "track_via": [
+            "damage",
+            "debuff"
+          ],
+          "notes": "https://www.wowhead.com/spell=1306858/wardens-protection"
+        },
+        {
+          "ability_name": "Desperate Thrash",
+          "category": null,
+          "track_via": [
+            "damage",
+            "debuff"
+          ],
+          "notes": "https://www.mythictrap.com/venomous-abyss/ulatek/heroic?ability=ulatekDesTra"
+        },
+        {
+          "ability_name": "Unchecked Rage",
+          "category": null,
+          "track_via": [
+            "damage",
+            "debuff"
+          ],
+          "notes": "https://www.mythictrap.com/venomous-abyss/ulatek/heroic?ability=ulatekUncRag"
+        },
+        {
+          "ability_name": "Rattler Slam",
+          "category": null,
+          "track_via": [
+            "damage",
+            "debuff"
+          ],
+          "notes": "https://www.mythictrap.com/venomous-abyss/ulatek/heroic?ability=ulatekRatSla"
+        },
+        {
+          "ability_name": "Falling Debris",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "notes": "https://www.wowhead.com/spell=1286885/falling-debris"
+        },
+        {
+          "ability_name": "Virulent Spit",
+          "category": null,
+          "track_via": [
+            "damage",
+            "debuff"
+          ],
+          "notes": "https://www.wowhead.com/spell=1302982/virulent-spit"
+        }
+      ]
+    },
+    {
+      "encounter_id": 3497,
+      "encounter_name": "The Lost Explorers",
+      "mechanics": [
+        {
+          "ability_name": "Aftershock",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1310500
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Shell Spin",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1291918
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Throw Junk",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1291935
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        }
+      ]
+    }
+  ]
+}
