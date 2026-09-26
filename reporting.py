@@ -618,7 +618,7 @@ def render_markdown(data: FightReportData) -> str:
                 r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_cell,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
             ])
-        lines.append(_md_table(["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"], rows))
+        lines.append(_md_table(["Player", "Avg iLvl", "Tier Pieces", "Tier Set HSCGL", "Gems", "Missing Enchants"], rows))
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
