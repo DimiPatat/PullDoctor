@@ -2,6 +2,135 @@
   "version": 1,
   "encounters": [
     {
+      "encounter_id": 3445,
+      "encounter_name": "Entombed Sentinels",
+      "mechanics": [
+        {
+          "ability_name": "Blood Venom",
+          "category": "ground_effect",
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1284210
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Noxious Blast",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1284452
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Protovenom Eruption",
+          "category": "spread",
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1296962
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Living Venom",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1284209
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        },
+        {
+          "ability_name": "Cultivated Burst",
+          "category": null,
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1284941
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": "maths mechanic"
+        }
+      ]
+    },
+    {
+      "encounter_id": 3455,
+      "encounter_name": "Vashnik the Malignant",
+      "mechanics": [
+        {
+          "ability_name": "Virulent Fumes",
+          "category": "ground_effect",
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1291461
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": "https://www.wowhead.com/spell=1291467/virulent-fumes"
+        },
+        {
+          "ability_name": "Plague Wave",
+          "category": "ground_effect",
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1295798
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": "https://www.wowhead.com/spell=1295798/plague-wave"
+        },
+        {
+          "ability_name": "Stygian Burst",
+          "category": "ground_effect",
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1302489
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": "https://www.wowhead.com/spell=1302489/stygian-burst"
+        },
+        {
+          "ability_name": "Umbral Ejection",
+          "category": "ground_effect",
+          "track_via": [
+            "damage"
+          ],
+          "require_source_differs_from_target": false,
+          "ability_ids": [
+            1286737
+          ],
+          "damage_multiplier_threshold": null,
+          "notes": null
+        }
+      ]
+    },
+    {
       "encounter_id": 3470,
       "encounter_name": "Nek'zali the Soulcoiler",
       "mechanics": [
