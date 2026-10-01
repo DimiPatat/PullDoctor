@@ -96,6 +96,21 @@ from main import EVENT_TYPES_NEEDED, run_all_analyzers
 # `tolerance_minutes` off from the intended time, regardless of any DST
 # edge case.
 #
+# GITHUB ACTIONS SCHEDULING DELAY -- the other half of the gap: cron-
+# triggered workflow runs on GitHub's *shared* runners are best-effort
+# and are documented to sometimes fire late under load, occasionally by
+# an hour or more. A run intended for "Wednesday 23:15 Brussels" can
+# therefore actually start executing well after midnight, i.e. on
+# Thursday local time. The ORIGINAL version of this guard only checked
+# "is today's weekday a scheduled weekday", which made it reject these
+# late-started runs outright (the workflow then reports success, but
+# nothing gets published, since the guard bailed out before doing any
+# work) -- that's the bug: a late GitHub Actions start silently turns
+# into a skipped report. late_start_grace_minutes below fixes this by
+# also accepting a run that starts shortly after midnight as still
+# "belonging" to the previous calendar day's scheduled slot, as long as
+# it starts within that grace window of the previous day's target time.
+#
 # Section 3 (publish_scheduled_report) calls this before doing any real
 # work, and supports --force to bypass it (used by the workflow's
 # manual workflow_dispatch trigger, where "I clicked run" already
@@ -110,6 +125,16 @@ DEFAULT_TARGET_HOUR = 23
 DEFAULT_TARGET_MINUTE = 15
 DEFAULT_TOLERANCE_MINUTES = 30
 
+# How late (in minutes, past midnight) a run is still allowed to start
+# and be treated as belonging to the PREVIOUS day's scheduled slot.
+# This absorbs GitHub Actions' own documented best-effort delay on
+# cron-triggered workflows, which can push a 23:15 Wednesday run into
+# the small hours of Thursday. 6 hours comfortably covers the delays
+# seen in practice while still refusing a run that's genuinely on the
+# wrong day (e.g. a Thursday afternoon manual mistake would still be
+# well outside this window).
+DEFAULT_LATE_START_GRACE_MINUTES = 360
+
 
 @dataclass
 class ScheduleCheckResult:
@@ -118,21 +143,37 @@ class ScheduleCheckResult:
     brussels_now: datetime.datetime
 
 
+def _minutes_since_target(brussels_now: datetime.datetime, target_day: datetime.date,
+                           target_hour: int, target_minute: int) -> float:
+    target_dt = datetime.datetime.combine(
+        target_day, datetime.time(hour=target_hour, minute=target_minute), tzinfo=BRUSSELS_TZ,
+    )
+    return (brussels_now - target_dt).total_seconds() / 60
+
+
 def is_within_scheduled_window(
     now: datetime.datetime | None = None,
     scheduled_weekdays: tuple[int, ...] = DEFAULT_SCHEDULED_WEEKDAYS,
     target_hour: int = DEFAULT_TARGET_HOUR,
     target_minute: int = DEFAULT_TARGET_MINUTE,
     tolerance_minutes: int = DEFAULT_TOLERANCE_MINUTES,
+    late_start_grace_minutes: int = DEFAULT_LATE_START_GRACE_MINUTES,
 ) -> ScheduleCheckResult:
     """
     True if `now` (converted to real Brussels local time -- correctly
     DST-aware via zoneinfo, regardless of what timezone `now` itself
     was given in) falls on one of `scheduled_weekdays` AND within
-    `tolerance_minutes` of target_hour:target_minute.
+    `tolerance_minutes` of target_hour:target_minute -- OR if `now`
+    falls shortly after midnight on the day immediately AFTER a
+    scheduled weekday, within `late_start_grace_minutes` of that
+    PREVIOUS day's target time. The second case exists because GitHub
+    Actions cron triggers are best-effort and documented to sometimes
+    fire late; a run meant for e.g. Wednesday 23:15 can actually start
+    on Thursday 02:30, and should still be treated as that Wednesday's
+    run rather than being rejected as "wrong day".
 
     `now` defaults to the real current time (timezone-aware, UTC) --
-    pass an explicit aware datetime only for testing. An NAIVE
+    pass an explicit aware datetime only for testing. A NAIVE
     datetime (no tzinfo) is rejected with a ValueError rather than
     silently assumed to be UTC or local time, since guessing wrong
     here is exactly the kind of subtle bug this module exists to
@@ -144,7 +185,7 @@ def is_within_scheduled_window(
     whole months (see module docstring) -- a job that's a few minutes
     late, or that fires during the ~1-week DST transition ambiguity
     window, should still be treated as "close enough", while a job
-    firing hours off (e.g. a stale/misconfigured cron entry) should not.
+    firing hours off on a genuinely wrong day should not.
     """
     if now is None:
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -154,27 +195,53 @@ def is_within_scheduled_window(
             "a naive datetime could silently be interpreted in the wrong timezone."
         )
     brussels_now = now.astimezone(BRUSSELS_TZ)
+
+    # Case 1: today is a scheduled weekday and we're close enough to today's target time.
+    if brussels_now.weekday() in scheduled_weekdays:
+        difference_minutes = abs(_minutes_since_target(brussels_now, brussels_now.date(), target_hour, target_minute))
+        if difference_minutes <= tolerance_minutes:
+            return ScheduleCheckResult(
+                is_within_window=True,
+                reason=f"{brussels_now.strftime('%A %H:%M')} Brussels time is within the scheduled window.",
+                brussels_now=brussels_now,
+            )
+
+    # Case 2: yesterday was a scheduled weekday, and we're within the late-start
+    # grace window of YESTERDAY's target time (i.e. a run that was supposed to
+    # start yesterday evening but was delayed by GitHub Actions into the early
+    # hours of today).
+    yesterday = brussels_now.date() - datetime.timedelta(days=1)
+    if yesterday.weekday() in scheduled_weekdays:
+        minutes_late = _minutes_since_target(brussels_now, yesterday, target_hour, target_minute)
+        if tolerance_minutes < minutes_late <= late_start_grace_minutes:
+            return ScheduleCheckResult(
+                is_within_window=True,
+                reason=(
+                    f"{brussels_now.strftime('%A %H:%M')} Brussels time is a late-started run "
+                    f"({minutes_late:.0f} minute(s) after {yesterday.strftime('%A')}'s "
+                    f"{target_hour:02d}:{target_minute:02d} target, within the "
+                    f"{late_start_grace_minutes}-minute late-start grace window) -- "
+                    f"treating it as that day's scheduled run."
+                ),
+                brussels_now=brussels_now,
+            )
+
     if brussels_now.weekday() not in scheduled_weekdays:
         return ScheduleCheckResult(
             is_within_window=False,
             reason=f"{brussels_now.strftime('%A')} is not one of the scheduled days.",
             brussels_now=brussels_now,
         )
+
     target_today = brussels_now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
     difference_minutes = abs((brussels_now - target_today).total_seconds()) / 60
-    if difference_minutes > tolerance_minutes:
-        return ScheduleCheckResult(
-            is_within_window=False,
-            reason=(
-                f"Current Brussels time {brussels_now.strftime('%H:%M')} is "
-                f"{difference_minutes:.0f} minute(s) from the target "
-                f"{target_hour:02d}:{target_minute:02d} (tolerance: {tolerance_minutes} min)."
-            ),
-            brussels_now=brussels_now,
-        )
     return ScheduleCheckResult(
-        is_within_window=True,
-        reason=f"{brussels_now.strftime('%A %H:%M')} Brussels time is within the scheduled window.",
+        is_within_window=False,
+        reason=(
+            f"Current Brussels time {brussels_now.strftime('%H:%M')} is "
+            f"{difference_minutes:.0f} minute(s) from the target "
+            f"{target_hour:02d}:{target_minute:02d} (tolerance: {tolerance_minutes} min)."
+        ),
         brussels_now=brussels_now,
     )
 
@@ -392,7 +459,8 @@ def main() -> None:
                 f"(current Brussels time: {check.brussels_now.strftime('%A %Y-%m-%d %H:%M %Z')}). "
                 f"This is expected -- the workflow's cron trigger fires more often than "
                 f"the actual schedule, and this guard (Section 1) only lets real "
-                f"work happen on the correct Monday/Wednesday evening, correctly accounting "
+                f"work happen on the correct Monday/Wednesday evening (plus a late-start grace "
+                f"window for delayed GitHub Actions runs), correctly accounting "
                 f"for CET/CEST regardless of how the cron itself is approximated. "
                 f"Use --force to bypass this (e.g. for a manual run)."
             )
