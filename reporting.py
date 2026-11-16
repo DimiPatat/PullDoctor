@@ -612,13 +612,13 @@ def render_markdown(data: FightReportData) -> str:
                 tier_pieces_cell = f"{tier.pieces_worn}/{TOTAL_TIER_SLOTS}"
                 tier_set_cell = tier.track_string
             if not r.has_data:
-                rows.append([_gear_player_markdown(r), "no data", tier_pieces_cell, tier_set_cell, "no data", "no data"])
+                rows.append([r.player_name, "no data", tier_pieces_cell, tier_set_cell, "no data", "no data"])
                 continue
             rows.append([
-                _gear_player_markdown(r), f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_cell,
+                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_cell,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
             ])
-        lines.append(_md_table(["Player", "Avg iLvl", "Tier Pieces", "Tier Set HSCGL", "Gems", "Missing Enchants"], rows))
+        lines.append(_md_table(["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"], rows))
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -1105,30 +1105,6 @@ td.meter-cell {{ position: relative; padding: 0; }}
     font-family: ui-monospace, "SF Mono", Consolas, monospace;
     font-weight: 700; font-size: 13.5px; letter-spacing: 0.06em;
 }}
-/* ---- Gear Check: Raider.IO links + per-slot detail ---- */
-a.rio-link {{ color: inherit; text-decoration: none; }}
-a.rio-link:hover {{ color: var(--accent); text-decoration: underline; }}
-.gear-toggle {{
-    background: none; border: 0; padding: 0 6px 0 0; margin: 0; cursor: pointer;
-    color: var(--text-dim); font-size: 12px; line-height: 1;
-}}
-.gear-toggle:hover {{ color: var(--accent); }}
-.gear-controls {{ margin: 0 0 6px 0; }}
-.gear-expand-all {{
-    background: var(--panel-alt); color: var(--text-dim); border: 1px solid var(--border);
-    border-radius: 4px; padding: 3px 10px; font-size: 11.5px; cursor: pointer;
-}}
-.gear-expand-all:hover {{ color: var(--text); border-color: var(--accent); }}
-tr.gear-detail-row {{ display: none; }}
-tr.gear-detail-row.open:not(.hidden-row) {{ display: table-row; }}
-tr.gear-detail-row > td {{ padding: 4px 10px 10px 26px; background: var(--panel-alt); }}
-table.gear-slots {{ width: auto; min-width: 70%; font-size: 12.5px; }}
-table.gear-slots th, table.gear-slots td {{ padding: 3px 14px 3px 0; border-bottom: 1px solid var(--border); }}
-.gear-slots .upg {{ font-weight: 700; white-space: nowrap; }}
-.gear-slots .rank {{ font-weight: 700; font-size: 11.5px; }}
-.gear-slots .muted {{ color: var(--text-dim); }}
-.gear-slots .missing {{ color: var(--wipe); font-weight: 600; }}
-.gear-slots sup.amb {{ color: var(--text-dim); font-size: 10px; margin-left: 2px; cursor: help; }}
 /* ---- Sticky mini-scoreboard ---- */
 .mini-scoreboard {{
     position: sticky; top: var(--sticky-top); z-index: 5;
@@ -1227,37 +1203,6 @@ function updateStickyOffset() {
         document.documentElement.style.setProperty('--sticky-top', bar.offsetHeight + 'px');
     }
 }
-function setGearRowOpen(detailRow, open) {
-    detailRow.classList.toggle('open', open);
-    var playerRow = detailRow.previousElementSibling;
-    var btn = playerRow ? playerRow.querySelector('.gear-toggle') : null;
-    if (btn) {
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        btn.textContent = open ? '\\u25BE' : '\\u25B8';
-    }
-}
-document.addEventListener('click', function(ev) {
-    var target = ev.target;
-    if (!target || !target.closest) { return; }
-    var toggle = target.closest('.gear-toggle');
-    if (toggle) {
-        var detail = toggle.closest('tr').nextElementSibling;
-        if (detail && detail.classList.contains('gear-detail-row')) {
-            setGearRowOpen(detail, !detail.classList.contains('open'));
-        }
-        return;
-    }
-    var all = target.closest('.gear-expand-all');
-    if (all) {
-        var open = all.dataset.state !== 'open';
-        var body = all.closest('.section-body');
-        if (body) {
-            body.querySelectorAll('tr.gear-detail-row').forEach(function(row) { setGearRowOpen(row, open); });
-        }
-        all.dataset.state = open ? 'open' : 'closed';
-        all.textContent = open ? 'Collapse all slots' : 'Expand all slots';
-    }
-});
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.role-chip input, .boss-chip input, .difficulty-chip input').forEach(function(el) {
         el.addEventListener('change', applyFilters);
@@ -1368,87 +1313,6 @@ def _efficiency_pill(efficiency_fraction: float) -> str:
     else:
         bucket = "eff-high"
     return f'<span class="eff-pill {bucket}">{pct:.1f}%</span>'
-
-
-# ---- Gear Check helpers: Raider.IO link, per-slot detail rows -------------
-# Rank pip colors for enchant/gem ranks (bronze / silver / gold, like the
-# in-game crafting-quality pips). Item upgrade tracks use the SAME colors as
-# the Tier Set column (tier_sets.track_color_for_letter via UpgradeInfo.color_hex).
-_RANK_COLORS = {1: "#b87333", 2: "#c0c0c0", 3: "#ffd700"}
-
-
-def _gear_player_link_html(report) -> str:
-    """Player-name cell: a clickable Raider.IO link if gear.py knows the realm, else the plain (escaped) name."""
-    link = getattr(report, "player_link_html", None)
-    return link if link else _esc(report.player_name)
-
-
-def _gear_player_cell_html(report) -> str:
-    """Player cell with a small expand/collapse toggle for the per-slot detail row (TRUSTED HTML)."""
-    toggle = (
-        '<button type="button" class="gear-toggle" aria-expanded="false" '
-        'title="Show all slots">\u25B8</button>'
-    ) if getattr(report, "has_data", False) and report.detail_pieces else ""
-    return f"{toggle}{_gear_player_link_html(report)}"
-
-
-def _gear_player_markdown(report) -> str:
-    """Markdown cell for a Gear Check player: [Name](raider.io url) when the realm is known, else plain name."""
-    url = getattr(report, "raiderio_url", None)
-    return f"[{report.player_name}]({url})" if url else report.player_name
-
-
-def _upgrade_chip_html(upgrade) -> str:
-    if upgrade is None:
-        return '<span class="muted">&ndash;</span>'
-    tip = f"ilvl {upgrade.item_level}"
-    mark = ""
-    if upgrade.alternatives:
-        tip += f" -- could also be {', '.join(upgrade.alternatives)} (item level alone can't tell)"
-        mark = '<sup class="amb">?</sup>'
-    return f'<span class="upg" style="color:{upgrade.color_hex};" title="{_esc(tip)}">{_esc(upgrade.label)}</span>{mark}'
-
-
-def _enhancement_html(info) -> str:
-    if info is None:
-        return ""
-    rank = ""
-    if info.rank:
-        rank = f' <span class="rank" style="color:{_RANK_COLORS.get(info.rank, "#c0c0c0")};">R{int(info.rank)}</span>'
-    if info.name:
-        short = info.name.split(" - ", 1)[1] if info.name.startswith("Enchant ") and " - " in info.name else info.name
-        return f'<span title="{_esc(info.name)} (ID {info.id})">{_esc(short)}</span>{rank}'
-    return f'<span class="muted" title="Not in gear_enhancements.json yet">#{info.id}</span>{rank}'
-
-
-def _gear_detail_row_html(report, data: "FightReportData", colspan: int) -> str:
-    """Hidden-by-default row under a player: every equipped slot with track/step, enchant and gem ranks."""
-    role = _role_of_html(report.player_id, data)
-    attrs = f'data-player="{_esc(report.player_name)}"'
-    if role:
-        attrs += f' data-role="{role}"'
-    body = []
-    for p in report.detail_pieces:
-        if p.is_enchantable_slot:
-            if p.has_enchant and p.enchant is not None:
-                enchant_html = _enhancement_html(p.enchant)
-            else:
-                enchant_html = '<span class="missing">missing</span>'
-        else:
-            enchant_html = '<span class="muted">&ndash;</span>'
-        gems_html = ", ".join(_enhancement_html(g) for g in p.gems) or '<span class="muted">&ndash;</span>'
-        tip = f"item {p.item_id}" + (f"; bonus IDs {', '.join(str(b) for b in p.bonus_ids)}" if p.bonus_ids else "")
-        body.append(
-            f'<tr><td title="{_esc(tip)}">{_esc(p.slot_name)}</td>'
-            f'<td class="num">{_esc(p.item_level if p.item_level is not None else "")}</td>'
-            f'<td>{_upgrade_chip_html(p.upgrade)}</td><td>{enchant_html}</td><td>{gems_html}</td></tr>'
-        )
-    table = (
-        '<table class="gear-slots"><thead><tr><th>Slot</th><th class="num">iLvl</th>'
-        '<th>Upgrade</th><th>Enchant</th><th>Gems</th></tr></thead>'
-        f'<tbody>{"".join(body)}</tbody></table>'
-    )
-    return f'<tr class="gear-detail-row" {attrs}><td colspan="{colspan}">{table}</td></tr>'
 
 
 def _row(
@@ -1977,15 +1841,12 @@ def _render_pull_sections(data: FightReportData) -> str:
 
     # 10. Gear Check -- "Lowest Quality" REMOVED; replaced with "Tier
     # Pieces" (X/5) and "Tier Set" (colored track string), joined
-    # against tier_set_reports by player_id. Each player's name is a
-    # Raider.IO link, and (if they have gear data) a toggle reveals a
-    # per-slot detail row: upgrade track + step, enchant and gem ranks.
+    # against tier_set_reports by player_id.
     if data.gear_reports:
         headers = ["Player", "Avg iLvl", "Tier Pieces", "Tier Set", "Gems", "Missing Enchants"]
         numeric_indices = _numeric_indices(headers)
         tier_by_player = {t.player_id: t for t in data.tier_set_reports}
         rows = []
-        any_detail = False
         for r in data.gear_reports:
             tier = tier_by_player.get(r.player_id)
             if tier is None or not tier.has_data:
@@ -1996,21 +1857,14 @@ def _render_pull_sections(data: FightReportData) -> str:
                 tier_set_html = _tier_set_string_html(tier.track_string)
             if not r.has_data:
                 rows.append(_row(r.player_id, r.player_name, data, [
-                    _gear_player_cell_html(r), "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
-                ], numeric_indices, raw_indices=frozenset({0, 3})))
+                    r.player_name, "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
+                ], numeric_indices, raw_indices=frozenset({3})))
                 continue
             rows.append(_row(r.player_id, r.player_name, data, [
-                _gear_player_cell_html(r), f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
+                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
-            ], numeric_indices, raw_indices=frozenset({0, 3})))
-            if r.detail_pieces:
-                any_detail = True
-                rows.append(_gear_detail_row_html(r, data, colspan=len(headers)))
-        controls = (
-            '<div class="gear-controls"><button type="button" class="gear-expand-all" data-state="closed">'
-            'Expand all slots</button></div>'
-        ) if any_detail else ""
-        blocks.append(_section("Gear Check", controls + _table(headers, rows, "No gear data.")))
+            ], numeric_indices, raw_indices=frozenset({3})))
+        blocks.append(_section("Gear Check", _table(headers, rows, "No gear data.")))
 
     # 11. Consumables.
     if data.consumable_results:

@@ -110,7 +110,6 @@ class GearItem:
     permanent_enchant_id: Optional[int] = None
     temporary_enchant_id: Optional[int] = None
     gem_ids: list[int] = field(default_factory=list)
-    bonus_ids: list[int] = field(default_factory=list)  # WCL 'bonusIDs' (upgrade track/step, sockets, ...)
 
 
 @dataclass
@@ -195,7 +194,6 @@ def parse_gear_item(raw_gear_item: dict, slot_index: int) -> GearItem:
         permanent_enchant_id=raw_gear_item.get("permanentEnchant"),
         temporary_enchant_id=raw_gear_item.get("temporaryEnchant"),
         gem_ids=[g.get("id") for g in raw_gear_item.get("gems", []) if g.get("id")],
-        bonus_ids=[b for b in (raw_gear_item.get("bonusIDs") or []) if isinstance(b, int)],
     )
 
 

@@ -35,29 +35,17 @@ import json
 import os
 import re
 import shutil
-import html as _html
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import quote as _urlquote
 
 from core import ParsedFight, get_fight_roster, parse_fight_bundle, parse_selection, resolve_fight_id
-from tier_sets import UpgradeInfo, upgrade_info_for_item_level
-from wcl import WCLClient, WCLAPIError, get_credentials, GUILD_SERVER_REGION
+from wcl import WCLClient, WCLAPIError, get_credentials
 
 ENCHANTABLE_SLOTS = {
     0: "Head", 2: "Shoulder", 4: "Chest", 6: "Legs", 7: "Feet",
     10: "Ring 1", 11: "Ring 2", 15: "Main Hand",
 }
 OFF_HAND_SLOT = 16
-
-# WCL CombatantInfo gear-array slot index -> display name (every slot).
-ALL_SLOT_NAMES = {
-    0: "Head", 1: "Neck", 2: "Shoulder", 3: "Shirt", 4: "Chest", 5: "Waist", 6: "Legs", 7: "Feet",
-    8: "Wrist", 9: "Hands", 10: "Ring 1", 11: "Ring 2", 12: "Trinket 1", 13: "Trinket 2",
-    14: "Back", 15: "Main Hand", 16: "Off Hand", 17: "Tabard",
-}
-# Order slots appear in the per-player detail table (shirt/tabard are never shown).
-SLOT_DISPLAY_ORDER = (0, 1, 2, 14, 4, 8, 9, 5, 6, 7, 10, 11, 12, 13, 15, 16)
 NON_ARMOR_SLOTS = {3, 17}  # Shirt, Ranged/Relic -- excluded from ilvl/quality averages
 
 QUALITY_NAMES = {
@@ -422,113 +410,6 @@ def quality_name(quality: int) -> str:
     return QUALITY_NAMES.get(quality, f"Unknown({quality})")
 
 
-# =======================================================================
-# Raider.IO character links
-# =======================================================================
-def normalize_realm_slug(realm: str | None) -> str | None:
-    """'Tarren Mill' -> 'tarren-mill', "Kil'jaeden" -> 'kiljaeden', 'Magtheridon' -> 'magtheridon'."""
-    if not realm:
-        return None
-    slug = realm.strip().lower().replace("'", "").replace("\u2019", "")
-    slug = re.sub(r"\s+", "-", slug)
-    return slug or None
-
-
-def raiderio_url(name: str | None, realm: str | None, region: str | None = None) -> str | None:
-    """https://raider.io/characters/{region}/{realm}/{name}; None if name or realm is unknown."""
-    realm_slug = normalize_realm_slug(realm)
-    if not name or not realm_slug:
-        return None
-    region_slug = (region or GUILD_SERVER_REGION or "eu").strip().lower()
-    return f"https://raider.io/characters/{region_slug}/{realm_slug}/{_urlquote(name.strip().lower(), safe='')}"
-
-
-def raiderio_link_html(name: str | None, realm: str | None, region: str | None = None) -> str:
-    """Clickable character name for the HTML report; plain escaped text if the realm is unknown."""
-    label = _html.escape(name or "Unknown")
-    url = raiderio_url(name, realm, region)
-    if url is None:
-        return label
-    return (
-        f'<a href="{_html.escape(url, quote=True)}" target="_blank" '
-        f'rel="noopener noreferrer" class="rio-link">{label}</a>'
-    )
-
-
-# =======================================================================
-# Enchant / gem ranks
-#
-# This app has no item database, and Warcraft Logs only gives raw IDs, so
-# names + ranks come from a small hand-maintained lookup file next to this
-# module (gear_enhancements.json):
-#
-#   {"version": 1,
-#    "enchants": {"<permanentEnchant id>": {"name": "...", "rank": 2}},
-#    "gems":     {"<gem item id>":         {"name": "...", "rank": 1}}}
-#
-# `python gear.py scan-enhancements <report>` lists every enchant/gem ID in
-# a report that isn't in the file yet and appends blank entries for you to
-# fill in. IDs that aren't in the file are still shown, as "#<id>".
-# =======================================================================
-ENHANCEMENTS_PATH = Path(__file__).with_name("gear_enhancements.json")
-
-
-@dataclass
-class EnhancementInfo:
-    kind: str                  # "enchant" or "gem"
-    id: int
-    name: str | None = None
-    rank: int | None = None
-
-    @property
-    def label(self) -> str:
-        base = self.name or f"#{self.id}"
-        return f"{base} R{self.rank}" if self.rank else base
-
-
-def load_enhancement_table(path: str | Path = ENHANCEMENTS_PATH) -> dict[str, dict[int, dict]]:
-    table: dict[str, dict[int, dict]] = {"enchants": {}, "gems": {}}
-    config_path = Path(path)
-    if not config_path.exists():
-        return table
-    try:
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"WARNING: {config_path.name} could not be read ({exc}) -- enchant/gem ranks will show raw IDs.")
-        return table
-    if not isinstance(raw, dict):
-        return table
-    for kind in ("enchants", "gems"):
-        entries = raw.get(kind)
-        if not isinstance(entries, dict):
-            continue
-        for key, value in entries.items():
-            if not str(key).isdigit() or not isinstance(value, dict):
-                continue
-            rank = value.get("rank")
-            name = value.get("name")
-            table[kind][int(key)] = {
-                "name": name.strip() if isinstance(name, str) and name.strip() else None,
-                "rank": rank if isinstance(rank, int) and rank > 0 else None,
-            }
-    return table
-
-
-ENHANCEMENT_TABLE = load_enhancement_table()
-
-
-def describe_enchant(enchant_id: int | None) -> EnhancementInfo | None:
-    if not enchant_id:
-        return None
-    entry = ENHANCEMENT_TABLE["enchants"].get(enchant_id, {})
-    return EnhancementInfo("enchant", enchant_id, entry.get("name"), entry.get("rank"))
-
-
-def describe_gem(gem_id: int) -> EnhancementInfo:
-    entry = ENHANCEMENT_TABLE["gems"].get(gem_id, {})
-    return EnhancementInfo("gem", gem_id, entry.get("name"), entry.get("rank"))
-
-
 @dataclass
 class GearPieceReport:
     slot: int
@@ -541,10 +422,6 @@ class GearPieceReport:
     enchant_id: int | None
     gem_count: int
     gem_ids: list[int] = field(default_factory=list)
-    bonus_ids: list[int] = field(default_factory=list)
-    upgrade: UpgradeInfo | None = None            # track + step, e.g. "Myth 4/6"
-    enchant: EnhancementInfo | None = None        # name/rank if known
-    gems: list[EnhancementInfo] = field(default_factory=list)
 
     @property
     def quality_name(self) -> str:
@@ -557,22 +434,6 @@ class PlayerGearReport:
     player_name: str
     pieces: list[GearPieceReport] = field(default_factory=list)
     has_data: bool = True
-    realm: str | None = None      # server from WCL masterData (actor.server)
-    region: str | None = None     # 'eu' / 'us' / ... (falls back to the guild region)
-
-    @property
-    def raiderio_url(self) -> str | None:
-        return raiderio_url(self.player_name, self.realm, self.region)
-
-    @property
-    def player_link_html(self) -> str:
-        return raiderio_link_html(self.player_name, self.realm, self.region)
-
-    @property
-    def detail_pieces(self) -> list[GearPieceReport]:
-        """Equipped pieces in display order (no empty slots, no shirt/tabard)."""
-        by_slot = {p.slot: p for p in self.pieces if p.item_id}
-        return [by_slot[slot] for slot in SLOT_DISPLAY_ORDER if slot in by_slot]
 
     @property
     def average_item_level(self) -> float:
@@ -598,42 +459,25 @@ class PlayerGearReport:
 
 def _build_gear_piece_report(gear_item) -> GearPieceReport:
     is_enchantable = gear_item.slot in ENCHANTABLE_SLOTS
-    slot_name = ENCHANTABLE_SLOTS.get(gear_item.slot) or ALL_SLOT_NAMES.get(gear_item.slot, f"Slot {gear_item.slot}")
-    equipped = bool(gear_item.item_id)
+    slot_name = ENCHANTABLE_SLOTS.get(gear_item.slot, "Off Hand" if gear_item.slot == OFF_HAND_SLOT else f"Slot {gear_item.slot}")
     return GearPieceReport(
         slot=gear_item.slot, slot_name=slot_name, item_id=gear_item.item_id, quality=gear_item.quality,
         item_level=gear_item.item_level, is_enchantable_slot=is_enchantable,
         has_enchant=gear_item.permanent_enchant_id is not None, enchant_id=gear_item.permanent_enchant_id,
         gem_count=len(gear_item.gem_ids), gem_ids=list(gear_item.gem_ids),
-        bonus_ids=list(getattr(gear_item, "bonus_ids", []) or []),
-        upgrade=upgrade_info_for_item_level(gear_item.item_level) if equipped else None,
-        enchant=describe_enchant(gear_item.permanent_enchant_id),
-        gems=[describe_gem(g) for g in gear_item.gem_ids],
     )
-
-
-def _actor_realm_region(actor, parsed_fight) -> tuple[str | None, str]:
-    """Realm comes from the WCL actor ('server'); region from the report if exposed, else the guild's region."""
-    realm = getattr(actor, "server", None) or getattr(actor, "realm", None)
-    region = getattr(actor, "region", None) or getattr(parsed_fight, "region", None) or GUILD_SERVER_REGION or "eu"
-    return realm, str(region).lower()
 
 
 def analyze_gear(parsed_fight) -> list[PlayerGearReport]:
     fight_roster = get_fight_roster(parsed_fight)
     reports = []
     for player_id, actor in fight_roster.items():
-        realm, region = _actor_realm_region(actor, parsed_fight)
         snapshot = parsed_fight.combatant_info.get(player_id)
         if snapshot is None:
-            reports.append(PlayerGearReport(
-                player_id=player_id, player_name=actor.name, has_data=False, realm=realm, region=region,
-            ))
+            reports.append(PlayerGearReport(player_id=player_id, player_name=actor.name, has_data=False))
             continue
         pieces = [_build_gear_piece_report(g) for g in snapshot.gear]
-        reports.append(PlayerGearReport(
-            player_id=player_id, player_name=actor.name, pieces=pieces, realm=realm, region=region,
-        ))
+        reports.append(PlayerGearReport(player_id=player_id, player_name=actor.name, pieces=pieces))
     return sorted(
         reports,
         key=lambda r: (not r.has_data, r.average_item_level if r.has_data else 0.0, r.player_name or ""),
@@ -1313,62 +1157,6 @@ def cmd_explore(args: argparse.Namespace) -> None:
     run_interactive_session(args)
 
 
-def cmd_scan_enhancements(args: argparse.Namespace) -> None:
-    """List enchant/gem IDs in a fight that aren't in gear_enhancements.json yet, and add blank entries for them."""
-    session = fetch_and_analyze_gear(args.report_code, args.fight_id)
-    if session is None:
-        return
-    parsed = session["parsed"]
-    roster = get_fight_roster(parsed)
-    enchants: dict[int, set[str]] = {}
-    gems: dict[int, set[str]] = {}
-    for player_id, actor in roster.items():
-        snapshot = parsed.combatant_info.get(player_id)
-        if snapshot is None:
-            continue
-        for item in snapshot.gear:
-            if not item.item_id:
-                continue
-            slot_label = ALL_SLOT_NAMES.get(item.slot, f"Slot {item.slot}")
-            if item.permanent_enchant_id:
-                enchants.setdefault(item.permanent_enchant_id, set()).add(slot_label)
-            for gem_id in item.gem_ids:
-                gems.setdefault(gem_id, set()).add(slot_label)
-
-    config_path = Path(args.path)
-    existing = {"version": 1, "enchants": {}, "gems": {}}
-    if config_path.exists():
-        existing = _load_raw_or_raise(config_path)
-        existing.setdefault("enchants", {})
-        existing.setdefault("gems", {})
-
-    def _unknown(found: dict[int, set[str]], kind: str) -> list[int]:
-        known = existing[kind]
-        return sorted(i for i in found if str(i) not in known)
-
-    new_enchants, new_gems = _unknown(enchants, "enchants"), _unknown(gems, "gems")
-    print(f"\nFound {len(enchants)} distinct enchant ID(s) and {len(gems)} distinct gem ID(s) in this fight.")
-    if not new_enchants and not new_gems:
-        print(f"Everything is already listed in {config_path.name}.")
-        return
-    for i in new_enchants:
-        print(f"  enchant {i:<8} seen on: {', '.join(sorted(enchants[i]))}")
-    for i in new_gems:
-        print(f"  gem     {i:<8} seen on: {', '.join(sorted(gems[i]))}")
-    for i in new_enchants:
-        existing["enchants"][str(i)] = {"name": "", "rank": None}
-    for i in new_gems:
-        existing["gems"][str(i)] = {"name": "", "rank": None}
-    for kind in ("enchants", "gems"):
-        existing[kind] = dict(sorted(existing[kind].items(), key=lambda kv: int(kv[0])))
-    backup_file(config_path)
-    _write_json(config_path, existing)
-    print(
-        f"\nAdded {len(new_enchants) + len(new_gems)} blank entr(y/ies) to {config_path}.\n"
-        'Open it and fill in "name" and "rank" (1, 2, 3...) for each, then regenerate the report.'
-    )
-
-
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Explore and manage gear compliance rules (merged CLI)."
@@ -1395,15 +1183,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Wipe the ENTIRE gear compliance profile on the FIRST successful 'add' this session.",
     )
     explore_parser.set_defaults(func=cmd_explore)
-
-    scan_parser = subparsers.add_parser(
-        "scan-enhancements",
-        help="List enchant/gem IDs from a fight that are missing from gear_enhancements.json and add blank entries.",
-    )
-    scan_parser.add_argument("report_code", nargs="?", default=None)
-    scan_parser.add_argument("fight_id", nargs="?", type=int, default=None)
-    scan_parser.add_argument("--path", default=str(ENHANCEMENTS_PATH))
-    scan_parser.set_defaults(func=cmd_scan_enhancements)
 
     list_parser = subparsers.add_parser("list", help="Show the current gear compliance profile")
     list_parser.add_argument("--path", default=str(DEFAULT_CONFIG_PATH))
