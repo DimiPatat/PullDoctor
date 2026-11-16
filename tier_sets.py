@@ -389,6 +389,78 @@ def track_color_for_letter(track_letter: str) -> str:
     return "#8a8d9c"
 
 
+# ---- Upgrade steps (track + "4/6") for ANY equipped item -----------------
+# Every Midnight track has 6 upgrade steps, and the item-level gaps between
+# steps are always +3, +3, +4, +3, +3 from the track's first step (verified
+# for Champion 292-308, Hero 305-321 and Myth 318-334 against Method.gg's
+# Season 2 tables; Adventurer/Veteran follow the same pattern from their
+# breakpoint floors). The first step is the breakpoint's min_item_level, so
+# anything customised via `set-breakpoint` flows through automatically.
+#
+# LIMITATION: tracks overlap (e.g. 318 = Hero 5/6 OR Myth 1/6), and item
+# level alone can't tell which one an item really is. We resolve overlaps to
+# the LOWEST track -- exactly what track_letter_for_item_level() already does
+# for the Tier Set column, so both columns always agree -- and report the
+# other possibility in `alternatives` so the report can flag it.
+UPGRADE_STEP_OFFSETS: tuple[int, ...] = (0, 3, 6, 10, 13, 16)
+UPGRADE_STEPS_PER_TRACK = len(UPGRADE_STEP_OFFSETS)
+
+
+@dataclass
+class UpgradeInfo:
+    item_level: int
+    track_letter: str | None
+    track_name: str | None
+    color_hex: str
+    step: int | None = None          # 1..UPGRADE_STEPS_PER_TRACK
+    exact: bool = True               # False -> ilvl isn't on the track's ladder (crafted/odd item)
+    over_cap: bool = False           # above the last step (e.g. Ascendant 340/344 Myth)
+    alternatives: tuple[str, ...] = ()  # other "Track N/6" labels with the very same item level
+
+    @property
+    def label(self) -> str:
+        if self.track_name is None:
+            return f"ilvl {self.item_level}"
+        if self.step is None or not self.exact:
+            return f"{self.track_name} ~{self.item_level}"
+        suffix = "+" if self.over_cap else ""
+        return f"{self.track_name} {self.step}/{UPGRADE_STEPS_PER_TRACK}{suffix}"
+
+
+def upgrade_info_for_item_level(item_level: float | None) -> UpgradeInfo | None:
+    if item_level is None or item_level <= 0:
+        return None
+    ilvl = int(item_level)
+    ordered = sorted(TRACK_BREAKPOINTS, key=lambda b: b.min_item_level)
+    candidates: list[tuple[TierTrackBreakpoint, int]] = []
+    for bp in ordered:
+        for index, offset in enumerate(UPGRADE_STEP_OFFSETS, start=1):
+            if bp.min_item_level + offset == ilvl:
+                candidates.append((bp, index))
+    if candidates:
+        bp, step = candidates[0]
+        alternatives = tuple(f"{b.track_name} {s}/{UPGRADE_STEPS_PER_TRACK}" for b, s in candidates[1:])
+        return UpgradeInfo(
+            item_level=ilvl, track_letter=bp.track_letter, track_name=bp.track_name,
+            color_hex=bp.color_hex, step=step, alternatives=alternatives,
+        )
+    # Not exactly on any ladder rung.
+    letter = track_letter_for_item_level(ilvl)
+    bp = next((b for b in ordered if b.track_letter == letter), None) if letter else None
+    if bp is None:
+        return UpgradeInfo(item_level=ilvl, track_letter=None, track_name=None, color_hex="#8a8d9c")
+    top_rung = bp.min_item_level + UPGRADE_STEP_OFFSETS[-1]
+    if bp.max_item_level is None and ilvl > top_rung:
+        return UpgradeInfo(
+            item_level=ilvl, track_letter=bp.track_letter, track_name=bp.track_name, color_hex=bp.color_hex,
+            step=UPGRADE_STEPS_PER_TRACK, exact=True, over_cap=True,
+        )
+    return UpgradeInfo(
+        item_level=ilvl, track_letter=bp.track_letter, track_name=bp.track_name,
+        color_hex=bp.color_hex, step=None, exact=False,
+    )
+
+
 TOTAL_TIER_SLOTS = len(TIER_SET_SLOT_ORDER)
 
 
