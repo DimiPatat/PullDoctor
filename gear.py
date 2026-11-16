@@ -35,6 +35,8 @@ import json
 import os
 import re
 import shutil
+import html as _html
+from urllib.parse import quote as _urlquote
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -428,12 +430,56 @@ class GearPieceReport:
         return quality_name(self.quality)
 
 
+# Region used when the report doesn't tell us one (your guild is EU).
+DEFAULT_REGION = "eu"
+
+
+def normalize_realm_slug(realm: str | None) -> str | None:
+    """'Tarren Mill' -> 'tarren-mill', "Kil'jaeden" -> 'kiljaeden', 'Magtheridon' -> 'magtheridon'."""
+    if not realm:
+        return None
+    slug = realm.strip().lower().replace("'", "").replace("\u2019", "")
+    slug = re.sub(r"\s+", "-", slug)
+    return slug or None
+
+
+def raiderio_url(name: str | None, realm: str | None, region: str | None = None) -> str | None:
+    """https://raider.io/characters/{region}/{realm}/{name}; None if name or realm is unknown."""
+    realm_slug = normalize_realm_slug(realm)
+    if not name or not realm_slug:
+        return None
+    region_slug = (region or DEFAULT_REGION).strip().lower()
+    return f"https://raider.io/characters/{region_slug}/{realm_slug}/{_urlquote(name.strip().lower(), safe='')}"
+
+
+def raiderio_link_html(name: str | None, realm: str | None, region: str | None = None) -> str:
+    """Clickable character name for the HTML report. Falls back to plain escaped text if realm is unknown."""
+    label = _html.escape(name or "Unknown")
+    url = raiderio_url(name, realm, region)
+    if url is None:
+        return label
+    return (
+        f'<a href="{_html.escape(url, quote=True)}" target="_blank" '
+        f'rel="noopener noreferrer" class="rio-link">{label}</a>'
+    )
+
+
 @dataclass
 class PlayerGearReport:
     player_id: int
     player_name: str
     pieces: list[GearPieceReport] = field(default_factory=list)
     has_data: bool = True
+    realm: str | None = None      # server from WCL masterData (actor.server)
+    region: str | None = None     # 'eu' / 'us' / ... (falls back to DEFAULT_REGION)
+
+    @property
+    def raiderio_url(self) -> str | None:
+        return raiderio_url(self.player_name, self.realm, self.region)
+
+    @property
+    def player_link_html(self) -> str:
+        return raiderio_link_html(self.player_name, self.realm, self.region)
 
     @property
     def average_item_level(self) -> float:
@@ -468,16 +514,32 @@ def _build_gear_piece_report(gear_item) -> GearPieceReport:
     )
 
 
+def _actor_realm_region(actor, parsed_fight) -> tuple[str | None, str]:
+    """Realm comes from the WCL actor ('server'); region from the report if exposed, else DEFAULT_REGION."""
+    realm = getattr(actor, "server", None) or getattr(actor, "realm", None)
+    region = (
+        getattr(actor, "region", None)
+        or getattr(parsed_fight, "region", None)
+        or DEFAULT_REGION
+    )
+    return realm, str(region).lower()
+
+
 def analyze_gear(parsed_fight) -> list[PlayerGearReport]:
     fight_roster = get_fight_roster(parsed_fight)
     reports = []
     for player_id, actor in fight_roster.items():
+        realm, region = _actor_realm_region(actor, parsed_fight)
         snapshot = parsed_fight.combatant_info.get(player_id)
         if snapshot is None:
-            reports.append(PlayerGearReport(player_id=player_id, player_name=actor.name, has_data=False))
+            reports.append(PlayerGearReport(
+                player_id=player_id, player_name=actor.name, has_data=False, realm=realm, region=region,
+            ))
             continue
         pieces = [_build_gear_piece_report(g) for g in snapshot.gear]
-        reports.append(PlayerGearReport(player_id=player_id, player_name=actor.name, pieces=pieces))
+        reports.append(PlayerGearReport(
+            player_id=player_id, player_name=actor.name, pieces=pieces, realm=realm, region=region,
+        ))
     return sorted(
         reports,
         key=lambda r: (not r.has_data, r.average_item_level if r.has_data else 0.0, r.player_name or ""),

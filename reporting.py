@@ -421,6 +421,12 @@ def render_text(data: FightReportData) -> str:
     return "\n".join(sections)
 
 
+def _gear_player_markdown(report) -> str:
+    """Markdown cell for a Gear Check player: [Name](raider.io url) when the realm is known, else plain name."""
+    url = getattr(report, "raiderio_url", None)
+    return f"[{report.player_name}]({url})" if url else report.player_name
+
+
 def _md_table(headers: list[str], rows: list[list[str]]) -> str:
     if not rows:
         return "_No data._"
@@ -612,10 +618,10 @@ def render_markdown(data: FightReportData) -> str:
                 tier_pieces_cell = f"{tier.pieces_worn}/{TOTAL_TIER_SLOTS}"
                 tier_set_cell = tier.track_string
             if not r.has_data:
-                rows.append([r.player_name, "no data", tier_pieces_cell, tier_set_cell, "no data", "no data"])
+                rows.append([_gear_player_markdown(r), "no data", tier_pieces_cell, tier_set_cell, "no data", "no data"])
                 continue
             rows.append([
-                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_cell,
+                _gear_player_markdown(r), f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_cell,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
             ])
         lines.append(_md_table(["Player", "Avg iLvl", "Tier Pieces", "Tier Set HSCGL", "Gems", "Missing Enchants"], rows))
@@ -1105,6 +1111,9 @@ td.meter-cell {{ position: relative; padding: 0; }}
     font-family: ui-monospace, "SF Mono", Consolas, monospace;
     font-weight: 700; font-size: 13.5px; letter-spacing: 0.06em;
 }}
+/* ---- Raider.IO character links (Gear Check) ---- */
+a.rio-link {{ color: inherit; text-decoration: none; }}
+a.rio-link:hover {{ color: var(--accent); text-decoration: underline; }}
 /* ---- Sticky mini-scoreboard ---- */
 .mini-scoreboard {{
     position: sticky; top: var(--sticky-top); z-index: 5;
@@ -1313,6 +1322,16 @@ def _efficiency_pill(efficiency_fraction: float) -> str:
     else:
         bucket = "eff-high"
     return f'<span class="eff-pill {bucket}">{pct:.1f}%</span>'
+
+
+def _gear_player_link_html(report) -> str:
+    """
+    Gear Check player-name cell: a clickable Raider.IO link when gear.py gave us a
+    realm for this player, otherwise the plain escaped name. Returns TRUSTED HTML
+    (already escaped) -- must be passed via raw_indices.
+    """
+    link = getattr(report, "player_link_html", None)
+    return link if link else _esc(report.player_name)
 
 
 def _row(
@@ -1857,13 +1876,13 @@ def _render_pull_sections(data: FightReportData) -> str:
                 tier_set_html = _tier_set_string_html(tier.track_string)
             if not r.has_data:
                 rows.append(_row(r.player_id, r.player_name, data, [
-                    r.player_name, "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
-                ], numeric_indices, raw_indices=frozenset({3})))
+                    _gear_player_link_html(r), "no data", tier_pieces_cell, tier_set_html, "no data", "no data",
+                ], numeric_indices, raw_indices=frozenset({0, 3})))
                 continue
             rows.append(_row(r.player_id, r.player_name, data, [
-                r.player_name, f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
+                _gear_player_link_html(r), f"{r.average_item_level:.1f}", tier_pieces_cell, tier_set_html,
                 str(r.total_gems), ", ".join(r.missing_enchant_slots) or "none",
-            ], numeric_indices, raw_indices=frozenset({3})))
+            ], numeric_indices, raw_indices=frozenset({0, 3})))
         blocks.append(_section("Gear Check", _table(headers, rows, "No gear data.")))
 
     # 11. Consumables.
